@@ -1,19 +1,17 @@
 use chrono::{NaiveDate, Utc};
-use margin_safety_application::{
+use fin_alfred_application::{
     quote_snapshot, AgentRequest, ContextManifest, JsonHttpMarketDataProvider, LlmProvider,
     MarketProviderConfig, OpenAiResponsesProvider, ProviderCapabilities, ProviderConfig,
     RecommendationRepository,
 };
-use margin_safety_domain::{
+use fin_alfred_domain::{
     expected_annualized_return, AgentPermission, AgentPolicy, CashDeploymentGuard, Confidence,
     DataOrigin, DecisionSnapshot, EvidenceScore, Execution, FeeBreakdown, FundamentalSnapshot,
     MarketQuoteSnapshot, Recommendation, ReverseDcfSnapshot, Side, SotpValuation,
     StagedPositionTransition, StrategyDraft, StrategyOutcome, XiaomiSignals, XiaomiValueAssessment,
 };
-use margin_safety_persistence::{
-    EncryptedDatabase, LedgerSnapshot, ProfileCatalog, SCHEMA_VERSION,
-};
-use margin_safety_platform::{
+use fin_alfred_persistence::{EncryptedDatabase, LedgerSnapshot, ProfileCatalog, SCHEMA_VERSION};
+use fin_alfred_platform::{
     create_profile_backup, decode_profile_backup, generate_database_key, InMemorySecretStore,
     SecretStore, SystemSecretStore,
 };
@@ -171,7 +169,7 @@ impl AppState {
 
     fn database_key(&self, profile_id: &str, create: bool) -> anyhow::Result<Vec<u8>> {
         if self.deterministic_test_keys {
-            return Ok(Sha256::digest(format!("margin-safety-test-key:{profile_id}")).to_vec());
+            return Ok(Sha256::digest(format!("fin-alfred-test-key:{profile_id}")).to_vec());
         }
         let secret_name = Self::secret_name(profile_id, "database-key");
         match self.secret_store.get(&secret_name)? {
@@ -501,7 +499,7 @@ fn get_overview(
             .count();
         set_dimension_scores(&mut overview["liLu"], &li_lu);
         set_dimension_scores(&mut overview["burry"], &burry);
-        if value.gate == margin_safety_domain::GateState::Red {
+        if value.gate == fin_alfred_domain::GateState::Red {
             overview["researchStatus"] = json!("blocked");
         }
     } else {
@@ -921,7 +919,7 @@ fn evaluate_xiaomi_decision_inner(
         let snapshot = DecisionSnapshot {
             profile_id: input.profile_id.clone(),
             strategy_version: "xiaomi-four-stage-v1".into(),
-            engine_version: "margin-safety-engine-v1".into(),
+            engine_version: "fin-alfred-engine-v1".into(),
             facts,
         };
         let recommendation = if let Some(existing) = database
@@ -1377,7 +1375,7 @@ fn send_agent_message_inner(state: &AppState, input: AgentInput) -> Result<Value
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let test_data_directory = std::env::var_os("MARGIN_SAFETY_TEST_DATA_DIR");
+            let test_data_directory = std::env::var_os("FIN_ALFRED_TEST_DATA_DIR");
             let data_directory = test_data_directory
                 .as_ref()
                 .map(std::path::PathBuf::from)
@@ -1389,11 +1387,11 @@ pub fn run() {
             let secret_store: Arc<dyn SecretStore> = if test_data_directory.is_some() {
                 Arc::new(InMemorySecretStore::default())
             } else {
-                Arc::new(SystemSecretStore::new("io.marginsafety.desktop"))
+                Arc::new(SystemSecretStore::new("io.finalfred.desktop"))
             };
             let deterministic_test_keys = test_data_directory.is_some();
             let catalog_key = if deterministic_test_keys {
-                Sha256::digest("margin-safety-test-catalog-key").to_vec()
+                Sha256::digest("fin-alfred-test-catalog-key").to_vec()
             } else {
                 let secret_name = "profile-catalog.database-key";
                 match secret_store.get(secret_name)? {
@@ -1478,7 +1476,7 @@ pub fn run() {
             send_agent_message
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Margin Safety");
+        .expect("error while running fin-alfred");
 }
 
 fn decimal(value: &str) -> anyhow::Result<Decimal> {
@@ -1542,7 +1540,7 @@ fn initialize_empty_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use margin_safety_domain::SotpComponent;
+    use fin_alfred_domain::SotpComponent;
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::thread;
@@ -1553,7 +1551,7 @@ mod tests {
         std::fs::create_dir_all(&profiles_directory).unwrap();
         let catalog = ProfileCatalog::open(
             &path.join("profiles.catalog.db"),
-            &hex::encode(Sha256::digest("margin-safety-test-catalog-key")),
+            &hex::encode(Sha256::digest("fin-alfred-test-catalog-key")),
         )
         .unwrap();
         catalog.add("profile-xiaomi-real", "我的投资档案").unwrap();
@@ -1662,7 +1660,7 @@ mod tests {
     #[test]
     fn password_backup_import_is_reencrypted_profile_scoped_and_repeatable() {
         let (directory, state) = test_state();
-        let backup_path = directory.path().join("xiaomi.margin-safety-backup");
+        let backup_path = directory.path().join("xiaomi.fin-alfred-backup");
         state
             .export_profile_inner(
                 "profile-xiaomi-real",
@@ -1840,7 +1838,7 @@ mod tests {
         let stale = database.find_by_decision_key(&first_key).unwrap().unwrap();
         assert_eq!(
             stale.status,
-            margin_safety_domain::RecommendationStatus::Superseded
+            fin_alfred_domain::RecommendationStatus::Superseded
         );
         assert_eq!(stale.superseded_by.as_deref(), Some(replacement_key));
         assert!(database.replay_decision(replacement_key).unwrap());
@@ -1864,7 +1862,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             expired.status,
-            margin_safety_domain::RecommendationStatus::Expired
+            fin_alfred_domain::RecommendationStatus::Expired
         );
     }
 

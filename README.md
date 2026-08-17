@@ -1,4 +1,4 @@
-# Margin Safety / 安全边际
+# fin-alfred
 
 本地优先、可审计、幂等的价值投资研究与决策助手。当前 `v0.1.0` 目标是 Windows NSIS 正式包；macOS 只保证源码构建。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
 

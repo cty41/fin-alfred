@@ -1,5 +1,5 @@
 [package]
-name = "margin-safety-platform"
+name = "fin-alfred-platform"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "margin-safety-domain"
+name = "fin-alfred-domain"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,4 +13,3 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-

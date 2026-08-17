@@ -1,7 +1,7 @@
 use anyhow::Context;
 use chrono::NaiveDate;
-use margin_safety_application::RecommendationRepository;
-use margin_safety_domain::{
+use fin_alfred_application::RecommendationRepository;
+use fin_alfred_domain::{
     Execution, FundamentalSnapshot, Ledger, MarketQuoteSnapshot, Recommendation,
     RecommendationStatus, ResearchLifecycle, ReverseDcfSnapshot, Side, SotpValuation,
     StrategyDraft, XiaomiValueAssessment,
@@ -450,7 +450,7 @@ impl EncryptedDatabase {
                                     )
                                 },
                             )?,
-                            fees: margin_safety_domain::FeeBreakdown {
+                            fees: fin_alfred_domain::FeeBreakdown {
                                 stamp_duty: Decimal::from_str(&row.get::<_, String>(6)?).unwrap(),
                                 clearing_fee: Decimal::from_str(&row.get::<_, String>(7)?).unwrap(),
                                 transfer_fee: Decimal::from_str(&row.get::<_, String>(8)?).unwrap(),
@@ -1164,7 +1164,7 @@ impl EncryptedDatabase {
         profile_id: &str,
         currency: &str,
         execution_key: &str,
-        fees: &margin_safety_domain::FeeBreakdown,
+        fees: &fin_alfred_domain::FeeBreakdown,
     ) -> anyhow::Result<RecordExecutionResult> {
         anyhow::ensure!(
             fees.stamp_duty >= Decimal::ZERO
@@ -1175,11 +1175,11 @@ impl EncryptedDatabase {
         );
         let mut connection = self.connection.lock().unwrap();
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (instrument_id, side, gross, old_net, old_fees): (String, String, String, String, margin_safety_domain::FeeBreakdown) = transaction.query_row(
+        let (instrument_id, side, gross, old_net, old_fees): (String, String, String, String, fin_alfred_domain::FeeBreakdown) = transaction.query_row(
             "SELECT instrument_id, side, gross_amount, net_cash_flow, stamp_duty, clearing_fee, transfer_fee, commission
              FROM executions WHERE execution_key = ?1 AND profile_id = ?2",
             params![execution_key, profile_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, margin_safety_domain::FeeBreakdown { stamp_duty: Decimal::from_str(&row.get::<_, String>(4)?).unwrap(), clearing_fee: Decimal::from_str(&row.get::<_, String>(5)?).unwrap(), transfer_fee: Decimal::from_str(&row.get::<_, String>(6)?).unwrap(), commission: Decimal::from_str(&row.get::<_, String>(7)?).unwrap() }))
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, fin_alfred_domain::FeeBreakdown { stamp_duty: Decimal::from_str(&row.get::<_, String>(4)?).unwrap(), clearing_fee: Decimal::from_str(&row.get::<_, String>(5)?).unwrap(), transfer_fee: Decimal::from_str(&row.get::<_, String>(6)?).unwrap(), commission: Decimal::from_str(&row.get::<_, String>(7)?).unwrap() }))
         ).context("execution is missing from this profile")?;
         let before = read_snapshot(&transaction, profile_id, &instrument_id, currency)?;
         if old_fees == *fees {
@@ -1497,7 +1497,7 @@ impl EncryptedDatabase {
         mutate: F,
     ) -> anyhow::Result<Recommendation>
     where
-        F: FnOnce(&mut Recommendation) -> Result<(), margin_safety_domain::InvalidTransition>,
+        F: FnOnce(&mut Recommendation) -> Result<(), fin_alfred_domain::InvalidTransition>,
     {
         let mut connection = self.connection.lock().unwrap();
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -1929,10 +1929,10 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use chrono::{TimeZone, Utc};
-    use margin_safety_domain::{
+    use fin_alfred_domain::{
         Condition, DataOrigin, FeeBreakdown, MarketQuoteSnapshot, SuggestedAction,
     };
-    use margin_safety_domain::{DecisionSnapshot, Recommendation};
+    use fin_alfred_domain::{DecisionSnapshot, Recommendation};
     use std::collections::BTreeMap;
     use std::str::FromStr;
     use tempfile::tempdir;
@@ -2496,7 +2496,7 @@ mod tests {
                 invalidation: "fundamental_thesis_invalidated".into(),
             },
             lifecycle: ResearchLifecycle::Draft,
-            test_scenarios: vec![margin_safety_domain::StrategyTestScenario {
+            test_scenarios: vec![fin_alfred_domain::StrategyTestScenario {
                 name: "confirmed rebound".into(),
                 inputs: std::collections::BTreeMap::from([(
                     "rebound-confirmation".into(),

@@ -64,7 +64,7 @@ function AppContent() {
   return (
     <div className={`app-shell ${agentOpen ? "with-agent" : ""}`}>
       <aside className="sidebar">
-        <div className="brand"><span>安</span><div><strong>安全边际</strong><small>Margin Safety</small></div></div>
+        <div className="brand"><span>FA</span><div><strong>fin-alfred</strong><small>可靠的价值投资管家</small></div></div>
         <div className="profile-switcher"><span><small>{t("profile")}</small><select aria-label="切换投资档案" value={overview.profileId} onChange={(event) => void selectProfile(event.target.value)}>{profiles.map((profile) => <option value={profile.id} key={profile.id}>{profile.name}</option>)}</select></span><ChevronDown /></div>
         {creatingProfile ? <form className="create-profile" onSubmit={createProfile}><input aria-label="新档案名称" autoFocus maxLength={80} value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="例如：家人投资档案" /><div><button type="button" onClick={() => setCreatingProfile(false)}>{t("cancel")}</button><button type="submit">{t("create")}</button></div></form> : <button className="new-profile" type="button" onClick={() => setCreatingProfile(true)}>{t("newProfile")}</button>}
         <nav>{nav.map(([label, key, Icon]) => <button className={activePage === label ? "active" : ""} onClick={() => setActivePage(label)} type="button" key={label}><Icon /><span>{t(key)}</span></button>)}</nav>

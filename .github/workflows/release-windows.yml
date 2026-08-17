@@ -37,10 +37,10 @@ jobs:
       - run: pnpm tauri build --bundles nsis
       - name: Install, launch, uninstall, and retain data
         shell: pwsh
-        run: ./scripts/Test-WindowsPackage.ps1 -InstallerPath (Get-ChildItem 'target/release/bundle/nsis/Margin Safety_*.exe' | Select-Object -First 1).FullName
+        run: ./scripts/Test-WindowsPackage.ps1 -InstallerPath (Get-ChildItem 'target/release/bundle/nsis/fin-alfred_*.exe' | Select-Object -First 1).FullName
       - name: Generate SHA-256
         shell: pwsh
-        run: Get-ChildItem 'target/release/bundle/nsis/Margin Safety_*.exe' | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content target/release/bundle/nsis/SHA256SUMS.txt
+        run: Get-ChildItem 'target/release/bundle/nsis/fin-alfred_*.exe' | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content target/release/bundle/nsis/SHA256SUMS.txt
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -59,7 +59,7 @@ jobs:
           tag_name: ${{ inputs.tag }}
           draft: true
           files: |
-            target/release/bundle/nsis/Margin Safety_*.exe
+            target/release/bundle/nsis/fin-alfred_*.exe
             target/release/bundle/nsis/SHA256SUMS.txt
             target/release/bundle/nsis/sbom.spdx.json
             target/release/bundle/nsis/rust-licenses.json

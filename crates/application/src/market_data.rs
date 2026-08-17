@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use margin_safety_domain::{DataOrigin, MarketQuoteSnapshot};
+use fin_alfred_domain::{DataOrigin, MarketQuoteSnapshot};
 use reqwest::blocking::Client;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

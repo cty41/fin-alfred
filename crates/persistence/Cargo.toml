@@ -1,5 +1,5 @@
 [package]
-name = "margin-safety-persistence"
+name = "fin-alfred-persistence"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,8 +7,8 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
-margin-safety-application = { path = "../application" }
-margin-safety-domain = { path = "../domain" }
+fin-alfred-application = { path = "../application" }
+fin-alfred-domain = { path = "../domain" }
 rusqlite.workspace = true
 rust_decimal.workspace = true
 sha2.workspace = true

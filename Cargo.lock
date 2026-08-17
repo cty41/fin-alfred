@@ -1029,6 +1029,92 @@ dependencies = [
 ]
 
 [[package]]
+name = "fin-alfred-application"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fin-alfred-domain",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "zeroize",
+]
+
+[[package]]
+name = "fin-alfred-desktop"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fin-alfred-application",
+ "fin-alfred-domain",
+ "fin-alfred-persistence",
+ "fin-alfred-platform",
+ "hex",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tempfile",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "fin-alfred-domain"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.20",
+ "uuid",
+]
+
+[[package]]
+name = "fin-alfred-persistence"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fin-alfred-application",
+ "fin-alfred-domain",
+ "hex",
+ "rusqlite",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "fin-alfred-platform"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "argon2",
+ "base64 0.22.1",
+ "hex",
+ "keyring",
+ "rand 0.8.7",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2153,92 +2239,6 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
-
-[[package]]
-name = "margin-safety-application"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "margin-safety-domain",
- "reqwest",
- "rust_decimal",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "zeroize",
-]
-
-[[package]]
-name = "margin-safety-desktop"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "hex",
- "margin-safety-application",
- "margin-safety-domain",
- "margin-safety-persistence",
- "margin-safety-platform",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tempfile",
- "uuid",
- "zeroize",
-]
-
-[[package]]
-name = "margin-safety-domain"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "hex",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.20",
- "uuid",
-]
-
-[[package]]
-name = "margin-safety-persistence"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "hex",
- "margin-safety-application",
- "margin-safety-domain",
- "rusqlite",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "margin-safety-platform"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "argon2",
- "base64 0.22.1",
- "hex",
- "keyring",
- "rand 0.8.7",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.20",
-]
 
 [[package]]
 name = "markup5ever"

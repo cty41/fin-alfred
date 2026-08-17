@@ -5,7 +5,7 @@ Windows 发布流水线先运行前端、浏览器E2E和 Rust 门禁，再生成
 本地包验收命令：
 
 ```powershell
-./scripts/Test-WindowsPackage.ps1 -InstallerPath './target/release/bundle/nsis/Margin Safety_0.1.0_x64-setup.exe'
+./scripts/Test-WindowsPackage.ps1 -InstallerPath './target/release/bundle/nsis/fin-alfred_0.1.0_x64-setup.exe'
 ```
 
 macOS 流水线检查Apple Silicon与Intel两个领域核心目标，并在runner原生架构编译前端和Tauri应用；不上传 `.app` 或 DMG，也不声明签名、公证与普通用户安装支持。

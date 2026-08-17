@@ -1,5 +1,5 @@
 [package]
-name = "margin-safety-application"
+name = "fin-alfred-application"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
-margin-safety-domain = { path = "../domain" }
+fin-alfred-domain = { path = "../domain" }
 rust_decimal.workspace = true
 reqwest.workspace = true
 serde.workspace = true

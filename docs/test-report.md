@@ -15,13 +15,13 @@
 
 ## Windows 安装包
 
-- 当前源码成功生成 `Margin Safety_0.1.0_x64-setup.exe`。
+- 当前源码成功生成 `fin-alfred_0.1.0_x64-setup.exe`。
 - 静默安装：通过。
 - 首次启动及使用既有档案重启：通过。
 - SQLCipher 档案不暴露明文 `SQLite format 3` 文件头：通过。
 - 静默卸载：通过。
 - 卸载后应用数据保留：通过。
-- SHA-256：`45639015829c0016de0506fa91d2969c528324b8b0d6ec8d5c71a51df32c8c68`。
+- SHA-256：`0d812d92cfa0e2b24100cb4763e4b48cd4d7686556b0657f4f441b9926f00a20`。
 - 当前本地包未签名；正式 Release 必须明确展示签名状态。
 
 ## 尚需外部 runner 证明

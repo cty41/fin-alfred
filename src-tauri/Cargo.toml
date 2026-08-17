@@ -1,11 +1,11 @@
 [package]
-name = "margin-safety-desktop"
+name = "fin-alfred-desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [lib]
-name = "margin_safety_desktop_lib"
+name = "fin_alfred_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -13,10 +13,10 @@ tauri-build.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-margin-safety-application = { path = "../crates/application" }
-margin-safety-domain = { path = "../crates/domain" }
-margin-safety-persistence = { path = "../crates/persistence" }
-margin-safety-platform = { path = "../crates/platform" }
+fin-alfred-application = { path = "../crates/application" }
+fin-alfred-domain = { path = "../crates/domain" }
+fin-alfred-persistence = { path = "../crates/persistence" }
+fin-alfred-platform = { path = "../crates/platform" }
 chrono.workspace = true
 hex.workspace = true
 rust_decimal.workspace = true

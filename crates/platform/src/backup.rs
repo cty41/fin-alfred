@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::Path;
 use thiserror::Error;
 
-const FORMAT: &str = "margin-safety-backup";
+const FORMAT: &str = "fin-alfred-backup";
 const FORMAT_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -23,8 +23,8 @@ interface I18nValue { locale: Locale; setLocale: (locale: Locale) => void; t: (k
 const I18nContext = createContext<I18nValue | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(() => localStorage.getItem("margin-safety.locale") === "en" ? "en" : "zh-CN");
-  useEffect(() => { localStorage.setItem("margin-safety.locale", locale); document.documentElement.lang = locale; }, [locale]);
+  const [locale, setLocale] = useState<Locale>(() => localStorage.getItem("fin-alfred.locale") === "en" ? "en" : "zh-CN");
+  useEffect(() => { localStorage.setItem("fin-alfred.locale", locale); document.documentElement.lang = locale; }, [locale]);
   const value = useMemo(() => ({ locale, setLocale, t: (key: MessageKey) => messages[locale][key] }), [locale]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

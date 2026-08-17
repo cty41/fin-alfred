@@ -90,7 +90,7 @@ export function SettingsPage({ bridge, profileId, onProfileImported }: { bridge:
       </form>
       <header><p className="eyebrow">Argon2id + AES-256-GCM</p><h2>跨平台加密备份</h2></header>
       <form onSubmit={exportBackup}>
-        <label>导出文件完整路径<input aria-label="备份导出路径" value={backupPath} onChange={(event) => setBackupPath(event.target.value)} placeholder="D:\\Backups\\xiaomi.margin-safety-backup" disabled={bridge.mode !== "desktop"} /></label>
+        <label>导出文件完整路径<input aria-label="备份导出路径" value={backupPath} onChange={(event) => setBackupPath(event.target.value)} placeholder="D:\\Backups\\xiaomi.fin-alfred-backup" disabled={bridge.mode !== "desktop"} /></label>
         <label>独立备份口令<input aria-label="备份导出口令" type="password" autoComplete="new-password" value={backupPassword} onChange={(event) => setBackupPassword(event.target.value)} disabled={bridge.mode !== "desktop"} /></label>
         <button type="submit" disabled={bridge.mode !== "desktop" || !backupPath.trim() || !backupPassword}>导出当前档案</button>
       </form>

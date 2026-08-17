@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Margin Safety",
+  "productName": "fin-alfred",
   "version": "0.1.0",
-  "identifier": "io.marginsafety.desktop",
+  "identifier": "io.finalfred.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{
-      "title": "安全边际",
+      "title": "fin-alfred",
       "width": 1440,
       "height": 900,
       "minWidth": 900,

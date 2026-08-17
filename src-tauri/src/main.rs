@@ -1,3 +1,3 @@
 fn main() {
-    margin_safety_desktop_lib::run();
+    fin_alfred_desktop_lib::run();
 }

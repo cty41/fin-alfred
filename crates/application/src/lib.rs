@@ -1,4 +1,4 @@
-use margin_safety_domain::{DecisionSnapshot, Execution, Ledger, LedgerError, Recommendation};
+use fin_alfred_domain::{DecisionSnapshot, Execution, Ledger, LedgerError, Recommendation};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -70,7 +70,7 @@ impl RecommendationRepository for InMemoryRecommendationRepository {
 pub fn apply_execution(ledger: &mut Ledger, execution: &Execution) -> Result<bool, LedgerError> {
     Ok(matches!(
         ledger.apply(execution)?,
-        margin_safety_domain::ApplyResult::Applied
+        fin_alfred_domain::ApplyResult::Applied
     ))
 }
 

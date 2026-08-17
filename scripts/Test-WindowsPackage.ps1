@@ -7,22 +7,22 @@ param(
 $ErrorActionPreference = 'Stop'
 $resolvedInstaller = (Resolve-Path -LiteralPath $InstallerPath).Path
 $testId = [Guid]::NewGuid().ToString('N')
-$testRoot = Join-Path $env:TEMP "margin-safety-package-$testId"
+$testRoot = Join-Path $env:TEMP "fin-alfred-package-$testId"
 $installDirectory = Join-Path $testRoot 'app'
 $dataDirectory = Join-Path $testRoot 'data'
-$previousTestDataDirectory = $env:MARGIN_SAFETY_TEST_DATA_DIR
+$previousTestDataDirectory = $env:FIN_ALFRED_TEST_DATA_DIR
 $sentinel = Join-Path $dataDirectory "package-test-$testId.sentinel"
 $appProcess = $null
 
 try {
     New-Item -ItemType Directory -Path $testRoot | Out-Null
-    $env:MARGIN_SAFETY_TEST_DATA_DIR = $dataDirectory
+    $env:FIN_ALFRED_TEST_DATA_DIR = $dataDirectory
     $install = Start-Process -FilePath $resolvedInstaller -ArgumentList @('/S', "/D=$installDirectory") -Wait -PassThru -WindowStyle Hidden
     if ($install.ExitCode -ne 0) {
         throw "NSIS installer exited with code $($install.ExitCode)"
     }
 
-    $application = Get-ChildItem -LiteralPath $installDirectory -Filter 'margin-safety-desktop.exe' -Recurse | Select-Object -First 1
+    $application = Get-ChildItem -LiteralPath $installDirectory -Filter 'fin-alfred-desktop.exe' -Recurse | Select-Object -First 1
     if (-not $application) {
         throw 'Installed application executable was not found'
     }
@@ -88,7 +88,7 @@ finally {
         Stop-Process -Id $appProcess.Id -Force -ErrorAction SilentlyContinue
     }
     Remove-Item -LiteralPath $sentinel -Force -ErrorAction SilentlyContinue
-    $env:MARGIN_SAFETY_TEST_DATA_DIR = $previousTestDataDirectory
+    $env:FIN_ALFRED_TEST_DATA_DIR = $previousTestDataDirectory
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     }

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Margin Safety",
+  "version": "0.1.0",
+  "identifier": "io.marginsafety.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{
+      "title": "安全边际",
+      "width": 1440,
+      "height": 900,
+      "minWidth": 900,
+      "minHeight": 650,
+      "resizable": true
+    }],
+    "security": { "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:;" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "shortDescription": "本地优先的幂等价值投资助手",
+    "longDescription": "确定性价值投资策略、人工审批、真实成交账本与BYOK研究助手。",
+    "windows": { "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true } }
+  }
+}

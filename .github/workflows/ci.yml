@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: rustfmt, clippy
+      - name: Install Windows SQLCipher build prerequisite
+        if: runner.os == 'Windows'
+        run: choco install strawberryperl --yes --no-progress
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Frontend gates
+        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
+      - name: Install browser test runtime
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser-mode end-to-end gate
+        run: pnpm test:e2e
+      - name: Add both macOS Rust targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Check full workspace for both macOS architectures
+        if: runner.os == 'macOS'
+        run: cargo check --workspace --all-targets --target aarch64-apple-darwin && cargo check --workspace --all-targets --target x86_64-apple-darwin
+      - name: Rust gates
+        run: cargo fmt --all --check && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tauri source build check
+        run: pnpm tauri build --no-bundle

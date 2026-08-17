@@ -1,0 +1,18 @@
+{
+  "profile_id": "self",
+  "instrument": "01810.HK",
+  "currency": "HKD",
+  "initial_shares": 225600,
+  "initial_cash": { "amount": "87889", "status": "INFERRED_NEEDS_VERIFICATION" },
+  "execution": {
+    "execution_key": "01810.HK-20260814-sell-12000-25.62",
+    "date": "2026-08-14",
+    "side": "SELL",
+    "shares": 12000,
+    "average_price": "25.62",
+    "gross_amount": "307440",
+    "fees": { "stamp_duty": "270", "clearing": "22", "transfer": "11", "commission": "26" },
+    "net_cash_inflow": "307111"
+  },
+  "expected": { "shares": 213600, "cash": "395000", "stage_1_status": "COMPLETED" }
+}

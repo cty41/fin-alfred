@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/domain",
+  "crates/application",
+  "crates/persistence",
+  "crates/platform",
+  "src-tauri"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+aes-gcm = "0.10"
+anyhow = "1"
+argon2 = "0.5"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+keyring = "3"
+rand = "0.8"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl", "chrono", "backup", "serialize"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+thiserror = "2"
+tempfile = "3"
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = "1"

@@ -1,0 +1,66 @@
+import type { ProfileOverview } from "../domain/types";
+
+const hkd = (amount: string) => ({ amount, currency: "HKD" as const });
+
+export const xiaomiOverview: ProfileOverview = {
+  profileId: "profile-xiaomi-real",
+  profileName: "我的投资档案",
+  instrumentId: "HKEX:1810",
+  symbol: "1810.HK",
+  instrumentName: "小米集团-W",
+  initialQuantity: "225600",
+  currentQuantity: "213600",
+  cash: hkd("395000"),
+  cashVerification: "verified",
+  researchStatus: "review",
+  unknownCount: 4,
+  transaction: {
+    id: "txn-xiaomi-20260814-12000",
+    executionKey: "fixture:HKEX:1810:2026-08-14:sell:12000:25.62",
+    instrumentId: "HKEX:1810",
+    side: "sell",
+    tradedAt: "2026-08-14",
+    quantity: "12000",
+    price: hkd("25.62"),
+    grossAmount: hkd("307440"),
+    fees: {
+      stampDuty: hkd("270"),
+      clearingFee: hkd("22"),
+      transferFee: hkd("11"),
+      commission: hkd("26"),
+      total: hkd("329"),
+    },
+    netCashFlow: hkd("307111"),
+  },
+  valuation: {
+    bear: hkd("—"),
+    base: hkd("—"),
+    bull: hkd("—"),
+    baseIrr: "待更新",
+    reverseDcf: "待更新",
+    confidence: "low",
+    validThrough: "待发布首版估值",
+  },
+  liLu: [
+    { id: "moat", label: "护城河", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "incremental-roic", label: "增量资本回报", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "cash-conversion", label: "现金流转化", score: null, trend: "unknown", evidenceFreshness: "aging" },
+    { id: "capital-allocation", label: "管理层与资本配置", score: null, trend: "unknown", evidenceFreshness: "aging" },
+    { id: "balance-sheet", label: "资产负债表", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "runway", label: "长期跑道", score: null, trend: "unknown", evidenceFreshness: "missing" },
+  ],
+  burry: [
+    { id: "discount", label: "估值折价", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "downside", label: "下行保护", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "balance-sheet", label: "资产负债表", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "normalized-fcf", label: "正常化自由现金流", score: null, trend: "unknown", evidenceFreshness: "aging" },
+    { id: "expectation-gap", label: "预期差", score: null, trend: "unknown", evidenceFreshness: "missing" },
+    { id: "catalyst", label: "价值释放路径", score: null, trend: "unknown", evidenceFreshness: "fresh" },
+  ],
+  stages: [
+    { stage: 1, label: "集中度保险", cumulativeTargetQuantity: "11280", actualCumulativeQuantity: "12000", status: "completed", nextRequirement: "已由真实成交完成，禁止重复建议" },
+    { stage: 2, label: "利用反弹减仓", cumulativeTargetQuantity: "22560", actualCumulativeQuantity: "12000", status: "waiting", nextRequirement: "确认基本面未恶化、出现明显反弹并发布最新估值" },
+    { stage: 3, label: "利好兑现后减仓", cumulativeTargetQuantity: "33840", actualCumulativeQuantity: "12000", status: "blocked", nextRequirement: "Stage 2完成后复核财报、汽车数据与新车订单" },
+    { stage: 4, label: "综合风险决策", cumulativeTargetQuantity: "45120", actualCumulativeQuantity: "12000", status: "blocked", nextRequirement: "Stage 3完成后复核就业、信用、基本面与估值" },
+  ],
+};

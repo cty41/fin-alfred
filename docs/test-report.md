@@ -1,0 +1,29 @@
+# v0.1.0 本地验收记录
+
+记录日期：2026-08-17（Asia/Shanghai）。
+
+## 自动化门禁
+
+- TypeScript 类型检查：通过。
+- ESLint：通过，零告警。
+- Vitest：7/7 通过。
+- Playwright 浏览器模拟后端流程：6/6 通过。
+- Rust 工作区：62/62 通过（application 9、desktop 7、domain 23、persistence 18、platform 5）。
+- `cargo fmt --all --check`：通过。
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过。
+- 生产前端模拟数据扫描：通过；正式 bundle 不包含 `MockAppBridge` 的成交、决策或档案夹具。
+
+## Windows 安装包
+
+- 当前源码成功生成 `Margin Safety_0.1.0_x64-setup.exe`。
+- 静默安装：通过。
+- 首次启动及使用既有档案重启：通过。
+- SQLCipher 档案不暴露明文 `SQLite format 3` 文件头：通过。
+- 静默卸载：通过。
+- 卸载后应用数据保留：通过。
+- SHA-256：`45639015829c0016de0506fa91d2969c528324b8b0d6ec8d5c71a51df32c8c68`。
+- 当前本地包未签名；正式 Release 必须明确展示签名状态。
+
+## 尚需外部 runner 证明
+
+当前目录没有 Git remote，无法在本地触发 GitHub Actions。macOS 源码构建以及 GitHub Release 的 SBOM、第三方许可证清单和草稿上传必须在代码进入远程仓库后由已配置的 macOS/Windows runner 给出证据，不能以本地 Windows 结果冒充。

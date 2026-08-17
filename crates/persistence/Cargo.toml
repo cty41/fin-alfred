@@ -1,0 +1,20 @@
+[package]
+name = "margin-safety-persistence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+margin-safety-application = { path = "../application" }
+margin-safety-domain = { path = "../domain" }
+rusqlite.workspace = true
+rust_decimal.workspace = true
+sha2.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

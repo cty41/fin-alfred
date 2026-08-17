@@ -1,15 +1,16 @@
 # fin-alfred
 
-本地优先、可审计、幂等的价值投资研究与决策助手。当前 `v0.1.0` 只构建和发布 Windows NSIS 安装包；源码与领域架构避免绑定 Windows，以便未来移植到 macOS，但 macOS 不属于当前构建或验收范围。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
+本地优先、可审计、幂等的价值投资研究与决策助手。当前版本从源码启动 Windows 本地 Gateway，并在浏览器中使用；npm 全局分发留待功能闭环稳定后处理。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
 
 ## 开发
 
-工具链固定为 Node.js 24.19.0、pnpm 11.19.0、Rust 1.97.1。Windows 桌面构建还需要 Visual Studio Build Tools（Desktop development with C++）、Strawberry Perl（编译 vendored OpenSSL/SQLCipher）与 WebView2。
+工具链固定为 Node.js 24.19.0、pnpm 11.19.0、Rust 1.97.1。Windows 构建还需要 Visual Studio Build Tools（Desktop development with C++）与 Strawberry Perl（编译 vendored OpenSSL/SQLCipher）。
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm dev
-pnpm tauri dev
+pnpm gateway:dev
+pnpm gateway:run
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -18,7 +19,7 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-`pnpm dev` 只使用 `MockAppBridge`，不会读取真实账本或密钥。`pnpm tauri dev` 使用桌面 IPC。生产构建运行 `pnpm tauri build --bundles nsis`。
+`pnpm dev` 只使用 `MockAppBridge`，不会读取真实账本或密钥。`pnpm gateway:dev` 启动 Vite 与本地 Rust Gateway；`pnpm gateway:run` 构建静态页面后由 Gateway 直接提供，不依赖 Vite。
 
 ## 安全边界
 
@@ -32,7 +33,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 - 新建家人档案可建立一次性、经用户核验的持仓/现金基线，并登记已经发生的券商成交。系统不会连接券商；成交费用修订保持原幂等键和持股不变，只原子调整现金差额并写审计。
 - 策略 DSL 只允许类型化指标、比较/布尔/时间条件、区间、组合约束、有限状态机、人工检查表和建议元数据，不包含任意代码、网络、文件系统、无限循环或动态库能力。
 - 策略正式生命周期固定为 `DRAFT → VALIDATED → PUBLISHED → SUPERSEDED`：相同版本不可静默覆盖；每个待校验版本必须带可确定性重放且全部通过的测试场景；LLM 只能创建草稿，校验和发布必须由本机用户分别确认。
-- 专家 MCP 默认关闭且逐工具授权；读取、分析、创建草稿以外的危险能力在策略层永久拒绝。`v0.1.0` 尚不提供 MCP 服务器连接界面。
+- 专家 MCP 默认关闭；设置页生成只显示一次的令牌。工具面只允许读取、分析和创建草稿，危险能力不进入 MCP 路由。
 
 架构、威胁模型与发布验收详见 [docs/architecture.md](docs/architecture.md)、[docs/security-model.md](docs/security-model.md) 和 [docs/release.md](docs/release.md)。
 

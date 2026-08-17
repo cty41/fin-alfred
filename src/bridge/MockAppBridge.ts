@@ -85,7 +85,7 @@ export class MockAppBridge implements AppBridge {
     return structuredClone(item);
   }
 
-  async exportProfileBackup() {
+  async exportProfileBackup(): Promise<Blob> {
     throw new Error("浏览器示例模式不能访问真实档案文件");
   }
 
@@ -127,6 +127,10 @@ export class MockAppBridge implements AppBridge {
   async getMarketProviderConfiguration() { return { configured: false, quoteUrl: "", sourceLabel: "", apiKeyStored: false }; }
   async configureMarketProvider() { throw new Error("浏览器示例模式不会保存或使用行情密钥"); }
   async refreshMarketQuote(): ReturnType<AppBridge["refreshMarketQuote"]> { throw new Error("浏览器示例模式不访问在线行情；请使用人工行情兜底"); }
+  async getMcpConfiguration() { return { configured: false }; }
+  async createMcpToken(): Promise<{ token: string }> { throw new Error("浏览器示例模式不会创建MCP令牌"); }
+  async getLegacyMigration() { return { available: false, profiles: [] }; }
+  async migrateLegacyProfiles(): Promise<{ imported: Array<{ id: string; name: string }> }> { throw new Error("浏览器示例模式没有旧桌面档案"); }
 
   async previewAgentMessage(input: Parameters<AppBridge["previewAgentMessage"]>[0]) {
     return {

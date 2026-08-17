@@ -8,12 +8,12 @@ export interface AgentMessageInput {
 }
 
 export interface AppBridge {
-  readonly mode: "desktop" | "mock" | "memory" | "http";
+  readonly mode: "mock" | "memory" | "http";
   getOverview(profileId?: string): Promise<ProfileOverview>;
   listProfiles(): Promise<Array<{ id: string; name: string }>>;
   createProfile(name: string): Promise<{ id: string; name: string }>;
-  exportProfileBackup(profileId: string, password: string, destination: string): Promise<void>;
-  importProfileBackup(password: string, source: string): Promise<{ id: string; name: string }>;
+  exportProfileBackup(profileId: string, password: string): Promise<Blob>;
+  importProfileBackup(password: string, source: ArrayBuffer): Promise<{ id: string; name: string }>;
   evaluateXiaomiDecision(profileId: string, signals: XiaomiSignals): Promise<DecisionEvaluation>;
   acceptDecision(profileId: string, decisionKey: string): Promise<unknown>;
   rejectDecision(profileId: string, decisionKey: string, reason: string): Promise<unknown>;
@@ -40,4 +40,8 @@ export interface AppBridge {
   getMarketProviderConfiguration(profileId: string): Promise<MarketProviderConfiguration>;
   configureMarketProvider(profileId: string, quoteUrl: string, sourceLabel: string, apiKey: string): Promise<void>;
   refreshMarketQuote(profileId: string): Promise<{ inserted: boolean; snapshot: { price: string; observed_at: string; source_label: string } }>;
+  getMcpConfiguration(profileId: string): Promise<{ configured: boolean }>;
+  createMcpToken(profileId: string): Promise<{ token: string }>;
+  getLegacyMigration(): Promise<{ available: boolean; directory?: string; profiles: Array<{ sourceId: string; name: string; quantity: string; cash: string; migrated: boolean }> }>;
+  migrateLegacyProfiles(): Promise<{ imported: Array<{ id: string; name: string }> }>;
 }

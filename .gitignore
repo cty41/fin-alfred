@@ -10,7 +10,6 @@ test-results/
 .env
 .env.*
 !.env.example
-src-tauri/gen/
 *.tsbuildinfo
 vite.config.js
 playwright.config.js

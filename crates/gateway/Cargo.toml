@@ -1,0 +1,17 @@
+[package]
+name = "fin-alfred-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+fin-alfred-runtime = { path = "../runtime" }
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+webbrowser.workspace = true

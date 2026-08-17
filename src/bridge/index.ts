@@ -1,7 +1,7 @@
 import type { AppBridge } from "./AppBridge";
+import { HttpAppBridge } from "./HttpAppBridge";
 import { MockAppBridge } from "./MockAppBridge";
-import { TauriAppBridge } from "./TauriAppBridge";
 
-const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const useGateway = import.meta.env.PROD || import.meta.env.VITE_FIN_ALFRED_GATEWAY === "1";
 
-export const appBridge: AppBridge = import.meta.env.DEV && !isTauri ? new MockAppBridge() : new TauriAppBridge();
+export const appBridge: AppBridge = useGateway ? new HttpAppBridge() : new MockAppBridge();

@@ -1,6 +1,6 @@
 # 架构与不变量
 
-依赖方向固定为 `React UI -> AppBridge -> Application -> Domain`。持久化、Tauri IPC 与操作系统能力是外层适配器，领域核心不引用 Tauri、Windows、macOS、路径或打包类型。
+依赖方向固定为 `React UI -> HttpAppBridge -> Gateway -> Runtime -> Application -> Domain`。持久化与操作系统能力是外层适配器，领域核心不引用 HTTP、Windows、macOS、路径或打包类型。
 
 核心不变量：
 
@@ -17,7 +17,7 @@
 11. 成交费用修订不创建新成交：`execution_key` 和持股保持不变，只按新旧净现金流差额更新现金并保留前后值审计。
 12. 策略进入 `VALIDATED` 前必须有至少一个测试场景；同一场景的规范输入重复重放必须得到相同匹配结果和建议动作，缺失输入、类型错误、失败断言或非法状态迁移一律拒绝校验。
 
-平台能力以 `SecretStore`、`AppDataDirectory`、`FileDialog`、`NotificationService`、`ExternalUrlOpener`、`ClipboardService` 和 `PlatformInfoProvider` 接口隔离；领域 crate 不依赖 Tauri、Windows、macOS 或路径实现。
+平台能力以 `SecretStore`、`AppDataDirectory`、`NotificationService`、`ExternalUrlOpener`、`ClipboardService` 和 `PlatformInfoProvider` 接口隔离；领域 crate 不依赖 Gateway、Windows、macOS 或路径实现。浏览器上传下载替代原生文件选择器。
 
 策略 JSON 首先进入只接受 `DRAFT` 的持久化边界。表达式是封闭枚举，只支持类型化指标、日期、区间、组合约束、有限状态机和人工检查表；嵌套深度及状态数量有上限。相同 `(profile_id, strategy_id, version)` 和相同内容重复保存为 no-op；相同版本不同内容拒绝覆盖。测试场景是策略内容和内容哈希的一部分，发布门禁会重新执行而不是信任前端结果。LLM/MCP 工具面不暴露校验或发布命令。
 

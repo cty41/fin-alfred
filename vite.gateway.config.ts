@@ -8,12 +8,11 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 1420,
     strictPort: true,
+    proxy: {
+      "/api": { target: "http://127.0.0.1:43117" },
+      "/mcp": { target: "http://127.0.0.1:43117" },
+      "/health": { target: "http://127.0.0.1:43117" },
+    },
     watch: { ignored: ["**/target/**", "**/node_modules/**"] },
-  },
-  envPrefix: ["VITE_"],
-  build: {
-    target: "es2022",
-    minify: "esbuild",
-    sourcemap: false,
   },
 });

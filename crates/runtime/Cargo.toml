@@ -1,0 +1,28 @@
+[package]
+name = "fin-alfred-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+fin-alfred-application = { path = "../application" }
+fin-alfred-domain = { path = "../domain" }
+fin-alfred-persistence = { path = "../persistence" }
+fin-alfred-platform = { path = "../platform" }
+hex.workspace = true
+rand.workspace = true
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tempfile.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

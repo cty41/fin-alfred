@@ -29,8 +29,8 @@ export function AgentPanel({ bridge, overview, open, onClose }: { bridge: AppBri
         profileId: overview.profileId,
         instrumentId: overview.instrumentId,
         fields: ["position", "cash", "strategyStages", "researchStatus", "valuationSummary"],
-        provider: bridge.mode === "desktop" ? "BYOK provider" : "Mock provider",
-        baseUrl: bridge.mode === "desktop" ? "configured-provider" : "local://mock",
+        provider: bridge.mode === "http" ? "BYOK provider" : "Mock provider",
+        baseUrl: bridge.mode === "http" ? "configured-provider" : "local://mock",
       },
     };
     setBusy(true);

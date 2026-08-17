@@ -32,7 +32,9 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Browser-mode end-to-end gate
         run: pnpm test:e2e
+      - name: Real Gateway end-to-end gate
+        run: pnpm test:e2e:gateway
       - name: Rust gates
         run: cargo fmt --all --check && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
-      - name: Tauri source build check
-        run: pnpm tauri build --no-bundle
+      - name: Gateway source build check
+        run: cargo build -p fin-alfred-gateway

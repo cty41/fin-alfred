@@ -1,10 +1,10 @@
 # fin-alfred
 
-本地优先、可审计、幂等的价值投资研究与决策助手。当前 `v0.1.0` 目标是 Windows NSIS 正式包；macOS 只保证源码构建。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
+本地优先、可审计、幂等的价值投资研究与决策助手。当前 `v0.1.0` 只构建和发布 Windows NSIS 安装包；源码与领域架构避免绑定 Windows，以便未来移植到 macOS，但 macOS 不属于当前构建或验收范围。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
 
 ## 开发
 
-工具链固定为 Node.js 24.19.0、pnpm 11.19.0、Rust 1.97.1。Windows 桌面构建还需要 Visual Studio Build Tools（Desktop development with C++）、Strawberry Perl（编译 vendored OpenSSL/SQLCipher）与 WebView2；macOS 需要 Xcode Command Line Tools。
+工具链固定为 Node.js 24.19.0、pnpm 11.19.0、Rust 1.97.1。Windows 桌面构建还需要 Visual Studio Build Tools（Desktop development with C++）、Strawberry Perl（编译 vendored OpenSSL/SQLCipher）与 WebView2。
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -23,7 +23,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 ## 安全边界
 
 - 每个投资档案独立数据库；正式目标使用 SQLCipher。
-- Windows 密钥进入系统凭据存储，macOS 进入 Keychain；普通导出不包含 BYOK 密钥。
+- Windows 密钥进入系统凭据存储；平台接口为未来的 macOS Keychain 适配保留边界。普通导出不包含 BYOK 密钥。
 - 跨平台备份以 Argon2id 派生密钥，使用 AES-256-GCM 加密，恢复时重新绑定本机密钥。
 - “接受建议”与“登记成交”是不同状态转换；LLM 两者均无权调用。
 - 人工行情默认24小时失效；基本面与SOTP必须带来源、有效期和内容哈希。缺失或过期数据不能通过勾选检查表绕过。

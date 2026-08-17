@@ -24,6 +24,6 @@
 - SHA-256：`0d812d92cfa0e2b24100cb4763e4b48cd4d7686556b0657f4f441b9926f00a20`。
 - 当前本地包未签名；正式 Release 必须明确展示签名状态。
 
-## 尚需外部 runner 证明
+## 远程发布状态
 
-当前目录没有 Git remote，无法在本地触发 GitHub Actions。macOS 源码构建以及 GitHub Release 的 SBOM、第三方许可证清单和草稿上传必须在代码进入远程仓库后由已配置的 macOS/Windows runner 给出证据，不能以本地 Windows 结果冒充。
+源码已推送到 `cty41/fin-alfred`。GitHub Actions 仅使用 Windows runner；macOS 不属于当前构建或验收范围。GitHub Release 的 SBOM、第三方许可证清单和草稿上传仍须由发布工作流给出独立证据，不能以本地 Windows 结果冒充。

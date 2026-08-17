@@ -77,6 +77,7 @@ test("formal strategy requires draft validation and explicit user publication", 
 
 test("family profile establishes one baseline and records a broker execution without trading", async ({ page }) => {
   await page.goto("/");
+  await page.getByLabel("关闭对话栏").click();
   await page.getByRole("button", { name: "＋ 新建档案" }).click();
   await page.getByLabel("新档案名称").fill("家人实盘档案");
   await page.getByRole("button", { name: "创建", exact: true }).click();

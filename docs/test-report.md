@@ -1,6 +1,6 @@
 # v0.1.0 本地验收记录
 
-记录日期：2026-08-17（Asia/Shanghai）。
+记录日期：2026-08-18（Asia/Shanghai）。
 
 ## 自动化门禁
 
@@ -12,6 +12,9 @@
 - `cargo fmt --all --check`：通过。
 - `cargo clippy --workspace --all-targets -- -D warnings`：通过。
 - 生产前端模拟数据扫描：通过；正式 bundle 不包含 `MockAppBridge` 的成交、决策或档案夹具。
+- npm 锁文件安装：`npm ci` 通过，审计结果为 0 个漏洞。
+- PowerShell 一键源码安装：真实 Release 构建、静态页面、启动健康检查、重复安装和卸载流程通过。
+- 一键卸载保留 `%LOCALAPPDATA%\fin-alfred` 数据夹具：通过。
 
 ## 已归档的桌面包证据
 
@@ -31,4 +34,4 @@
 - 小米真实账本：持股 213,600 股、现金 HK$395,000、Stage 1 永久完成。
 - 未认证写入、跨源会话、伪造 MCP 令牌和 MCP 正式成交越权：均被拒绝。
 - 旧桌面档案重新加密迁移与重复迁移：自动测试通过，旧数据不删除。
-- 当前不生成安装包、npm 包或 GitHub Release。
+- 当前不生成原生安装包、npm 包或 GitHub Release；PowerShell 引导脚本从确定的 Git 提交执行源码构建。

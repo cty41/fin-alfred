@@ -24,11 +24,11 @@ function stop(code = 0) {
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
-const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const cargoCandidate = join(process.env.USERPROFILE ?? "", ".cargo", "bin", "cargo.exe");
 const cargo = process.platform === "win32" && existsSync(cargoCandidate) ? cargoCandidate : "cargo";
 
-start(pnpm, ["vite", "--mode", "gateway", "--config", "vite.gateway.config.ts"], process.platform === "win32");
+start(npm, ["run", "gateway:ui"], process.platform === "win32");
 setTimeout(() => {
   if (!stopping) {
     const args = ["run", "-p", "fin-alfred-gateway", "--", "--ui-url", "http://127.0.0.1:1420"];

@@ -12,29 +12,28 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
       - uses: actions/setup-node@v4
         with:
           node-version: 24.19.0
-          cache: pnpm
+          cache: npm
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: rustfmt, clippy
       - name: Install Windows SQLCipher build prerequisite
         run: choco install strawberryperl --yes --no-progress
       - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
       - name: Frontend gates
-        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build
+        run: npm run typecheck && npm run lint && npm test && npm run build
       - name: Install browser test runtime
-        run: pnpm exec playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
       - name: Browser-mode end-to-end gate
-        run: pnpm test:e2e
+        run: npm run test:e2e
       - name: Real Gateway end-to-end gate
-        run: pnpm test:e2e:gateway
+        run: npm run test:e2e:gateway
       - name: Rust gates
         run: cargo fmt --all --check && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
       - name: Gateway source build check
         run: cargo build -p fin-alfred-gateway
+      - name: One-command source installer gate
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-SourceInstaller.ps1

@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
   "scripts": {
     "dev": "vite",
+    "gateway:ui": "vite --mode gateway --config vite.gateway.config.ts",
     "gateway:dev": "node scripts/gateway-dev.mjs",
-    "gateway:run": "pnpm build && node scripts/gateway-run.mjs",
+    "gateway:run": "npm run build && node scripts/gateway-run.mjs",
     "build": "tsc -b && vite build && node scripts/check-production-bundle.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",

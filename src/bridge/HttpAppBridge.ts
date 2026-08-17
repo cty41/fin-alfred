@@ -8,7 +8,7 @@ async function ensureSession() {
       const existing = await fetch("/api/v1/session", { credentials: "include" });
       if (existing.ok) return;
       const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
-      if (!token) throw new Error("缺少本地 Gateway 启动令牌，请重新运行 pnpm gateway:dev 或 pnpm gateway:run");
+      if (!token) throw new Error("缺少本地 Gateway 启动令牌，请重新运行 npm run gateway:dev 或 npm run gateway:run");
       const response = await fetch("/api/v1/session", {
         method: "POST",
         credentials: "include",

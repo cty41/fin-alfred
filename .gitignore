@@ -1,19 +1,44 @@
+# Dependencies and build output
 node_modules/
 data-provider/.venv/
-__pycache__/
-*.pyc
 dist/
 target/
+.cache/
+*.tsbuildinfo
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Test and diagnostic output
 playwright-report/
 test-results/
+blob-report/
+coverage/
+.nyc_output/
+*.log
+
+# Local application data, databases and exports
 *.db
 *.db-shm
 *.db-wal
 *.msbackup
+*.zip
+
+# Local configuration and secrets
 .env
 .env.*
 !.env.example
-*.tsbuildinfo
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
 vite.config.js
 playwright.config.js
 nul

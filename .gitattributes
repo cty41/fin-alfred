@@ -1,0 +1,29 @@
+# Keep source text consistent across Windows and future cross-platform builds.
+* text=auto eol=lf
+
+# PowerShell is primarily edited and executed on Windows.
+*.ps1 text eol=crlf
+
+# Lock files are tracked source inputs; avoid custom diff heuristics.
+package-lock.json text -diff
+Cargo.lock text -diff
+data-provider/uv.lock text -diff
+
+# Binary assets and local archive/database formats must not be line-normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.pdf binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary

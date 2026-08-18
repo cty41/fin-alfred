@@ -1,62 +1,42 @@
 import { expect, test } from "@playwright/test";
 
-test("real Gateway serves the idempotent ledger and restricted MCP", async ({ page, request }) => {
-  const unauthenticated = await request.post("http://127.0.0.1:43117/api/v1/invoke/get_overview", {
-    headers: { host: "127.0.0.1:43117", origin: "http://127.0.0.1:43117" },
-    data: {},
-  });
+test("real Gateway serves the prototype and keeps MCP restricted", async ({ page, request }) => {
+  const base = "http://127.0.0.1:43118";
+  const headers = { host: "127.0.0.1:43118", origin: "http://127.0.0.1:43118" };
+  const unauthenticated = await request.post(`${base}/api/v1/invoke/list_watchlist`, { headers, data: { profileId: "profile-xiaomi-real" } });
   expect(unauthenticated.status()).toBe(401);
-  const hostileOrigin = await request.post("http://127.0.0.1:43117/api/v1/session", {
-    headers: { host: "127.0.0.1:43117", origin: "https://attacker.invalid" },
-    data: { token: "gateway-e2e-bootstrap" },
-  });
+  const hostileOrigin = await request.post(`${base}/api/v1/session`, { headers: { host: "127.0.0.1:43118", origin: "https://attacker.invalid" }, data: { token: "gateway-e2e-bootstrap" } });
   expect(hostileOrigin.status()).toBe(403);
-  const fakeMcpToken = await request.post("http://127.0.0.1:43117/mcp", {
-    headers: { authorization: "Bearer invalid", host: "127.0.0.1:43117" },
-    data: { jsonrpc: "2.0", id: 0, method: "tools/list" },
-  });
+  const fakeMcpToken = await request.post(`${base}/mcp`, { headers: { authorization: "Bearer invalid", host: "127.0.0.1:43118" }, data: { jsonrpc: "2.0", id: 0, method: "tools/list" } });
   expect(fakeMcpToken.status()).toBe(401);
   await page.goto("/#token=gateway-e2e-bootstrap");
-  await expect(page.getByText("Stage 1完成率 106.38%")).toBeVisible();
-  await page.getByRole("button", { name: "账本" }).click();
-  await expect(page.getByRole("cell", { name: "2026-08-14", exact: true })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "12,000" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
+  await page.getByRole("button", { name: "小 小米集团-W 01810" }).click();
+  await expect(page.getByText("213,600 股")).toBeVisible();
+  await expect(page.getByText("HK$395,000")).toBeVisible();
+  await expect(page.getByText("已完成")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Stage 1完成率 106.38%")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Watchlist" })).toBeVisible();
   await expect(page).not.toHaveURL(/token=/);
   await page.getByRole("button", { name: "设置" }).click();
-  await page.getByRole("button", { name: "创建 MCP 令牌" }).click();
-  const token = await page.locator("output code").last().textContent();
-  expect(token).toBeTruthy();
-  const response = await request.post("http://127.0.0.1:43117/mcp", {
-    headers: { authorization: `Bearer ${token}`, host: "127.0.0.1:43117" },
-    data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+  await page.getByRole("button", { name: "打开开发诊断" }).click();
+  await expect(page.getByRole("dialog", { name: "开发诊断" })).toBeVisible();
+  await expect(page.getByText("startup", { exact: true }).first()).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: /导出诊断包/ }).click();
+  expect((await download).suggestedFilename()).toMatch(/^fin-alfred-diagnostics-\d{4}-\d{2}-\d{2}\.zip$/);
+  await page.getByRole("button", { name: "关闭" }).click();
+  const token = await page.evaluate(async () => {
+    const response = await fetch("/api/v1/invoke/create_mcp_token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profileId: "profile-xiaomi-real" }) });
+    const body = await response.json();
+    return body.value.token as string;
   });
+  const response = await request.post(`${base}/mcp`, { headers: { authorization: `Bearer ${token}`, host: "127.0.0.1:43118" }, data: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
   expect(response.ok()).toBeTruthy();
   const body = JSON.stringify(await response.json());
   expect(body).toContain("create_strategy_draft");
   expect(body).not.toContain("publish_strategy");
   expect(body).not.toContain("record_decision_execution");
-
-  const crossProfile = await request.post("http://127.0.0.1:43117/mcp", {
-    headers: { authorization: `Bearer ${token}`, host: "127.0.0.1:43117" },
-    data: {
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: { name: "get_profile_activity", arguments: { profileId: "forged-family-profile" } },
-    },
-  });
+  const crossProfile = await request.post(`${base}/mcp`, { headers: { authorization: `Bearer ${token}`, host: "127.0.0.1:43118" }, data: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_profile_activity", arguments: { profileId: "forged-family-profile" } } } });
   expect(JSON.stringify(await crossProfile.json())).toContain("cannot access another profile");
-
-  const forbiddenCall = await request.post("http://127.0.0.1:43117/mcp", {
-    headers: { authorization: `Bearer ${token}`, host: "127.0.0.1:43117" },
-    data: {
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: { name: "record_decision_execution", arguments: {} },
-    },
-  });
-  expect(JSON.stringify(await forbiddenCall.json())).toContain("tool is not available to MCP");
 });

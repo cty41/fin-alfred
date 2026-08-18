@@ -19,6 +19,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.2"
+      - name: Sync locked AKShare environment
+        env:
+          UV_DEFAULT_INDEX: https://pypi.org/simple
+        run: uv sync --frozen --project data-provider
+      - name: Test AKShare adapter
+        run: uv run --frozen --project data-provider python -m unittest discover -s data-provider -p "test_*.py" -v
       - name: Install Windows SQLCipher build prerequisite
         run: choco install strawberryperl --yes --no-progress
       - name: Install frontend dependencies

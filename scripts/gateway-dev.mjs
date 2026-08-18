@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -24,11 +24,19 @@ function stop(code = 0) {
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.env.npm_execpath;
 const cargoCandidate = join(process.env.USERPROFILE ?? "", ".cargo", "bin", "cargo.exe");
 const cargo = process.platform === "win32" && existsSync(cargoCandidate) ? cargoCandidate : "cargo";
+const projectRoot = process.cwd();
+process.env.UV_DEFAULT_INDEX = "https://pypi.org/simple";
+const uvCheck = spawnSync("uv", ["sync", "--frozen", "--project", "data-provider"], { stdio: "inherit" });
+if (uvCheck.status !== 0) {
+  throw new Error("AKShare 环境初始化失败。请安装 uv 后重试：https://docs.astral.sh/uv/");
+}
+process.env.FIN_ALFRED_PROJECT_ROOT = projectRoot;
 
-start(npm, ["run", "gateway:ui"], process.platform === "win32");
+if (!npmCli) throw new Error("无法定位 npm CLI；请通过 npm run gateway:dev 启动。");
+start(process.execPath, [npmCli, "run", "gateway:ui"]);
 setTimeout(() => {
   if (!stopping) {
     const args = ["run", "-p", "fin-alfred-gateway", "--", "--ui-url", "http://127.0.0.1:1420"];

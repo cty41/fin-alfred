@@ -1,4 +1,7 @@
 node_modules/
+data-provider/.venv/
+__pycache__/
+*.pyc
 dist/
 target/
 playwright-report/

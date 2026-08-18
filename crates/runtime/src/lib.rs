@@ -6,9 +6,11 @@ use fin_alfred_application::{
     RecommendationRepository,
 };
 use fin_alfred_domain::{
-    expected_annualized_return, AgentPermission, AgentPolicy, CashDeploymentGuard, Confidence,
-    DataOrigin, DecisionSnapshot, EvidenceScore, Execution, FeeBreakdown, FundamentalSnapshot,
-    MarketQuoteSnapshot, Recommendation, ReverseDcfSnapshot, Side, SotpValuation,
+    calculate_dcf, calculate_relative, expected_annualized_return, AgentPermission, AgentPolicy,
+    AnnualFinancials, CashDeploymentGuard, Confidence, DataOrigin, DcfInput, DcfResult,
+    DecisionSnapshot, EvidenceScore, Execution, FeeBreakdown, FundamentalSnapshot,
+    InstrumentProfile, MarketQuoteSnapshot, MultipleSeries, PriceSnapshot, Recommendation,
+    RelativeInput, RelativeResult, ReverseDcfSnapshot, Side, SotpValuation,
     StagedPositionTransition, StrategyDraft, StrategyOutcome, XiaomiSignals, XiaomiValueAssessment,
 };
 use fin_alfred_persistence::{EncryptedDatabase, LedgerSnapshot, ProfileCatalog, SCHEMA_VERSION};
@@ -25,8 +27,11 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::{Duration, Instant};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -1247,6 +1252,567 @@ fn send_agent_message(state: &AppState, input: AgentInput) -> Result<Value, Stri
     send_agent_message_inner(state, input)
 }
 
+const PROTOTYPE_WORKSPACE_KEY: &str = "prototype.workspace-v1";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PrototypeWorkspace {
+    #[serde(default)]
+    instruments: Vec<InstrumentProfile>,
+    #[serde(default)]
+    watchlist: Vec<String>,
+    #[serde(default)]
+    financials: Vec<AnnualFinancials>,
+    #[serde(default)]
+    dcf_models: Vec<DcfResult>,
+    #[serde(default)]
+    relative_models: Vec<RelativeResult>,
+    #[serde(default)]
+    external_snapshots: Vec<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileInstrumentArgs {
+    profile_id: String,
+    instrument_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveInstrumentArgs {
+    profile_id: String,
+    instrument: InstrumentProfile,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveFinancialArgs {
+    profile_id: String,
+    financials: AnnualFinancials,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveDcfArgs {
+    profile_id: String,
+    input: DcfInput,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveRelativeArgs {
+    profile_id: String,
+    input: RelativeInput,
+}
+
+fn default_workspace(profile_id: &str) -> PrototypeWorkspace {
+    if profile_id != "profile-xiaomi-real" {
+        return PrototypeWorkspace::default();
+    }
+    PrototypeWorkspace {
+        instruments: vec![InstrumentProfile {
+            instrument_id: "HKEX:1810".into(),
+            symbol: "01810".into(),
+            name: "小米集团-W".into(),
+            currency: "HKD".into(),
+            announcement_url: "https://www1.hkexnews.hk/search/titlesearch.xhtml?category=0&lang=ZH&market=SEHK&stockId=1000195151".into(),
+            investor_relations_url: "https://ir.mi.com/".into(),
+            buy_price: None,
+            price_snapshots: vec![],
+            manual_price_override: None,
+        }],
+        watchlist: vec!["HKEX:1810".into()],
+        ..PrototypeWorkspace::default()
+    }
+}
+
+fn load_workspace(
+    database: &EncryptedDatabase,
+    profile_id: &str,
+) -> Result<PrototypeWorkspace, String> {
+    database
+        .get_setting(PROTOTYPE_WORKSPACE_KEY)
+        .map_err(|error| error.to_string())
+        .map(|workspace| workspace.unwrap_or_else(|| default_workspace(profile_id)))
+}
+
+fn store_workspace(
+    database: &EncryptedDatabase,
+    workspace: &PrototypeWorkspace,
+) -> Result<(), String> {
+    database
+        .put_setting(PROTOTYPE_WORKSPACE_KEY, workspace)
+        .map_err(|error| error.to_string())
+}
+
+fn instrument_price(instrument: &InstrumentProfile) -> Option<&PriceSnapshot> {
+    instrument
+        .manual_price_override
+        .as_ref()
+        .or_else(|| instrument.price_snapshots.last())
+}
+
+fn list_watchlist(state: &AppState, profile_id: String) -> Result<Value, String> {
+    let (_, database) = state.profile(&profile_id)?;
+    let workspace = load_workspace(&database, &profile_id)?;
+    let items: Vec<Value> = workspace
+        .watchlist
+        .iter()
+        .filter_map(|id| {
+            let instrument = workspace
+                .instruments
+                .iter()
+                .find(|item| &item.instrument_id == id)?;
+            let dcf = workspace
+                .dcf_models
+                .iter()
+                .rev()
+                .find(|item| item.input.instrument_id == *id);
+            let relative = workspace
+                .relative_models
+                .iter()
+                .rev()
+                .find(|item| item.input.instrument_id == *id);
+            let price = instrument_price(instrument);
+            let history: Vec<String> = instrument
+                .price_snapshots
+                .iter()
+                .rev()
+                .take(65)
+                .map(|item| item.price.clone())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            Some(json!({
+                "instrument": instrument,
+                "lastPrice": price.map(|item| item.price.clone()),
+                "previousClose": price.and_then(|item| item.previous_close.clone()),
+                "priceSource": price.map(|item| item.source.clone()),
+                "manualOverride": instrument.manual_price_override.is_some(),
+                "priceHistory": history,
+                "dcfBase": dcf.map(|item| item.base.value_per_share.clone()),
+                "relativeBase": relative.and_then(|item| item.base.clone())
+            }))
+        })
+        .collect();
+    Ok(json!(items))
+}
+
+fn save_instrument(state: &AppState, input: SaveInstrumentArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    if input.instrument.instrument_id.trim().is_empty()
+        || input.instrument.symbol.trim().is_empty()
+        || input.instrument.name.trim().is_empty()
+    {
+        return Err("instrument id, symbol and name are required".into());
+    }
+    if !input.instrument.announcement_url.is_empty()
+        && !input.instrument.announcement_url.starts_with("https://")
+    {
+        return Err("announcement URL must use HTTPS".into());
+    }
+    if !input.instrument.investor_relations_url.is_empty()
+        && !input
+            .instrument
+            .investor_relations_url
+            .starts_with("https://")
+    {
+        return Err("investor relations URL must use HTTPS".into());
+    }
+    match workspace
+        .instruments
+        .iter_mut()
+        .find(|item| item.instrument_id == input.instrument.instrument_id)
+    {
+        Some(existing) => {
+            let prices = existing.price_snapshots.clone();
+            *existing = input.instrument.clone();
+            existing.price_snapshots = prices;
+        }
+        None => workspace.instruments.push(input.instrument.clone()),
+    }
+    if !workspace
+        .watchlist
+        .contains(&input.instrument.instrument_id)
+    {
+        workspace
+            .watchlist
+            .push(input.instrument.instrument_id.clone());
+    }
+    store_workspace(&database, &workspace)?;
+    Ok(json!(input.instrument))
+}
+
+fn remove_watchlist_instrument(
+    state: &AppState,
+    input: ProfileInstrumentArgs,
+) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    let before = workspace.watchlist.len();
+    workspace.watchlist.retain(|id| id != &input.instrument_id);
+    store_workspace(&database, &workspace)?;
+    Ok(json!({"removed": workspace.watchlist.len() != before}))
+}
+
+fn get_instrument_summary(state: &AppState, input: ProfileInstrumentArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let workspace = load_workspace(&database, &input.profile_id)?;
+    let instrument = workspace
+        .instruments
+        .iter()
+        .find(|item| item.instrument_id == input.instrument_id)
+        .ok_or("instrument is not in this profile")?;
+    let financials: Vec<_> = workspace
+        .financials
+        .iter()
+        .filter(|item| item.instrument_id == input.instrument_id)
+        .cloned()
+        .collect();
+    let dcf = workspace
+        .dcf_models
+        .iter()
+        .rev()
+        .find(|item| item.input.instrument_id == input.instrument_id);
+    let relative = workspace
+        .relative_models
+        .iter()
+        .rev()
+        .find(|item| item.input.instrument_id == input.instrument_id);
+    let ledger = database
+        .ledger_snapshot(
+            &input.profile_id,
+            &input.instrument_id,
+            &instrument.currency,
+        )
+        .ok();
+    Ok(json!({
+        "instrument": instrument,
+        "price": instrument_price(instrument),
+        "financials": financials,
+        "dcf": dcf,
+        "relative": relative,
+        "ledger": ledger,
+        "stageOneCompleted": input.profile_id == "profile-xiaomi-real" && input.instrument_id == "HKEX:1810"
+    }))
+}
+
+fn list_annual_financials(state: &AppState, input: ProfileInstrumentArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut items: Vec<_> = load_workspace(&database, &input.profile_id)?
+        .financials
+        .into_iter()
+        .filter(|item| item.instrument_id == input.instrument_id)
+        .collect();
+    items.sort_by_key(|item| item.year);
+    Ok(json!(items))
+}
+
+fn save_annual_financials(state: &AppState, input: SaveFinancialArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    if !(1900..=2200).contains(&input.financials.year) {
+        return Err("financial year is invalid".into());
+    }
+    let key = (&input.financials.instrument_id, input.financials.year);
+    if let Some(existing) = workspace
+        .financials
+        .iter_mut()
+        .find(|item| (&item.instrument_id, item.year) == key)
+    {
+        *existing = input.financials.clone();
+    } else {
+        workspace.financials.push(input.financials.clone());
+    }
+    store_workspace(&database, &workspace)?;
+    Ok(json!(input.financials))
+}
+
+fn preview_dcf(input: SaveDcfArgs) -> Result<Value, String> {
+    Ok(json!(calculate_dcf(input.input)?))
+}
+
+fn save_dcf(state: &AppState, input: SaveDcfArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    let result = calculate_dcf(input.input)?;
+    let inserted = !workspace
+        .dcf_models
+        .iter()
+        .any(|item| item.content_hash == result.content_hash);
+    if inserted {
+        workspace.dcf_models.push(result.clone());
+        store_workspace(&database, &workspace)?;
+    }
+    Ok(json!({"inserted": inserted, "result": result}))
+}
+
+fn preview_relative(input: SaveRelativeArgs) -> Result<Value, String> {
+    Ok(json!(calculate_relative(input.input)?))
+}
+
+fn save_relative(state: &AppState, input: SaveRelativeArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    let result = calculate_relative(input.input)?;
+    let inserted = !workspace
+        .relative_models
+        .iter()
+        .any(|item| item.content_hash == result.content_hash);
+    if inserted {
+        workspace.relative_models.push(result.clone());
+        store_workspace(&database, &workspace)?;
+    }
+    Ok(json!({"inserted": inserted, "result": result}))
+}
+
+fn run_akshare(action: &str, payload: &Value) -> Result<Value, String> {
+    let project_root = std::env::var_os("FIN_ALFRED_PROJECT_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let adapter = project_root
+        .join("data-provider")
+        .join("akshare_adapter.py");
+    if !adapter.is_file() {
+        return Err(format!(
+            "AKShare adapter is missing at {}",
+            adapter.display()
+        ));
+    }
+    let stdout = tempfile::NamedTempFile::new()
+        .map_err(|error| format!("failed to create AKShare stdout buffer: {error}"))?;
+    let stderr = tempfile::NamedTempFile::new()
+        .map_err(|error| format!("failed to create AKShare stderr buffer: {error}"))?;
+    let mut child = Command::new("uv")
+        .env("UV_DEFAULT_INDEX", "https://pypi.org/simple")
+        .args(["run", "--frozen", "--project"])
+        .arg(project_root.join("data-provider"))
+        .arg("python")
+        .arg(&adapter)
+        .arg(action)
+        .arg(payload.to_string())
+        .stdout(Stdio::from(stdout.reopen().map_err(|error| {
+            format!("failed to open AKShare stdout buffer: {error}")
+        })?))
+        .stderr(Stdio::from(stderr.reopen().map_err(|error| {
+            format!("failed to open AKShare stderr buffer: {error}")
+        })?))
+        .spawn()
+        .map_err(|error| format!("failed to start AKShare adapter: {error}"))?;
+    let deadline = Instant::now() + Duration::from_secs(45);
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| format!("failed to monitor AKShare adapter: {error}"))?
+        {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(
+                "AKShare adapter timed out after 45 seconds; cached data was retained".into(),
+            );
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
+    let stdout = std::fs::read(stdout.path())
+        .map_err(|error| format!("failed to read AKShare response: {error}"))?;
+    let stderr = std::fs::read(stderr.path())
+        .map_err(|error| format!("failed to read AKShare diagnostics: {error}"))?;
+    if stderr.len() > 64 * 1024 {
+        return Err("AKShare diagnostics exceeded 64 KiB; cached data was retained".into());
+    }
+    if !status.success() {
+        return Err(String::from_utf8_lossy(&stderr).trim().to_string());
+    }
+    if stdout.len() > 8 * 1024 * 1024 {
+        return Err("AKShare response exceeded 8 MiB".into());
+    }
+    let mut value: Value = serde_json::from_slice(&stdout)
+        .map_err(|error| format!("invalid AKShare response: {error}"))?;
+    let diagnostic_message = String::from_utf8_lossy(&stderr).trim().to_string();
+    if !diagnostic_message.is_empty() {
+        if let Some(object) = value.as_object_mut() {
+            object.insert("diagnosticMessage".into(), json!(diagnostic_message));
+            object.insert(
+                "fallbackUsed".into(),
+                json!(diagnostic_message.contains("falling back")),
+            );
+        }
+    }
+    Ok(value)
+}
+
+fn refresh_watchlist_prices(state: &AppState, profile_id: String) -> Result<Value, String> {
+    let (_, database) = state.profile(&profile_id)?;
+    let mut workspace = load_workspace(&database, &profile_id)?;
+    let symbols: Vec<String> = workspace
+        .watchlist
+        .iter()
+        .filter_map(|id| {
+            workspace
+                .instruments
+                .iter()
+                .find(|item| &item.instrument_id == id)
+                .map(|item| item.symbol.clone())
+        })
+        .collect();
+    let response = run_akshare("prices", &json!({"symbols": symbols}))?;
+    let prices = response
+        .get("prices")
+        .and_then(Value::as_array)
+        .ok_or("AKShare price response is missing prices")?;
+    let mut updated = 0;
+    for value in prices {
+        let symbol = value
+            .get("symbol")
+            .and_then(Value::as_str)
+            .ok_or("price symbol is missing")?;
+        if let Some(instrument) = workspace
+            .instruments
+            .iter_mut()
+            .find(|item| item.symbol == symbol)
+        {
+            let snapshots: Vec<PriceSnapshot> = serde_json::from_value(
+                value
+                    .get("history")
+                    .cloned()
+                    .unwrap_or_else(|| json!([value])),
+            )
+            .map_err(|error| error.to_string())?;
+            for snapshot in snapshots {
+                if !instrument.price_snapshots.iter().any(|existing| {
+                    existing.observed_at == snapshot.observed_at
+                        && existing.source == snapshot.source
+                }) {
+                    instrument.price_snapshots.push(snapshot);
+                    updated += 1;
+                }
+            }
+            instrument
+                .price_snapshots
+                .sort_by(|left, right| left.observed_at.cmp(&right.observed_at));
+            if instrument.price_snapshots.len() > 260 {
+                let remove = instrument.price_snapshots.len() - 260;
+                instrument.price_snapshots.drain(0..remove);
+            }
+        }
+    }
+    workspace.external_snapshots.push(response.clone());
+    if workspace.external_snapshots.len() > 20 {
+        workspace.external_snapshots.remove(0);
+    }
+    store_workspace(&database, &workspace)?;
+    Ok(json!({
+        "updated": updated,
+        "fetchedAt": response.get("fetchedAt"),
+        "diagnosticMessage": response.get("diagnosticMessage"),
+        "fallbackUsed": response.get("fallbackUsed").and_then(Value::as_bool).unwrap_or(false)
+    }))
+}
+
+fn refresh_relative_data(state: &AppState, input: ProfileInstrumentArgs) -> Result<Value, String> {
+    let (_, database) = state.profile(&input.profile_id)?;
+    let mut workspace = load_workspace(&database, &input.profile_id)?;
+    let instrument = workspace
+        .instruments
+        .iter()
+        .find(|item| item.instrument_id == input.instrument_id)
+        .ok_or("instrument is not in this profile")?
+        .clone();
+    let peers: Vec<String> = workspace
+        .relative_models
+        .iter()
+        .rev()
+        .find(|item| item.input.instrument_id == input.instrument_id)
+        .map(|item| {
+            item.input
+                .peers
+                .iter()
+                .filter(|peer| peer.included)
+                .map(|peer| peer.symbol.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    let response = run_akshare(
+        "relative",
+        &json!({"symbol": instrument.symbol, "peers": peers}),
+    )?;
+    let fetched_at = response
+        .get("fetchedAt")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let mut relative_input = workspace
+        .relative_models
+        .iter()
+        .rev()
+        .find(|item| item.input.instrument_id == input.instrument_id)
+        .map(|item| item.input.clone())
+        .unwrap_or(RelativeInput {
+            instrument_id: input.instrument_id.clone(),
+            normalized_eps: "0".into(),
+            normalized_ocf_per_share: "0".into(),
+            pe: empty_multiple_series(),
+            pcf: empty_multiple_series(),
+            peers: vec![],
+            source: "AKShare / Baidu / Eastmoney".into(),
+            fetched_at: None,
+            as_of: Utc::now().date_naive().to_string(),
+        });
+    relative_input.pe =
+        serde_json::from_value(response.get("pe").cloned().ok_or("PE series is missing")?)
+            .map_err(|error| error.to_string())?;
+    relative_input.pcf = serde_json::from_value(
+        response
+            .get("pcf")
+            .cloned()
+            .ok_or("PCF series is missing")?,
+    )
+    .map_err(|error| error.to_string())?;
+    relative_input.peers =
+        serde_json::from_value(response.get("peers").cloned().unwrap_or_else(|| json!([])))
+            .map_err(|error| error.to_string())?;
+    relative_input.fetched_at = fetched_at;
+    workspace.external_snapshots.push(response.clone());
+    workspace
+        .relative_models
+        .retain(|item| item.input.instrument_id != input.instrument_id);
+    workspace
+        .relative_models
+        .push(calculate_relative(relative_input.clone())?);
+    store_workspace(&database, &workspace)?;
+    let mut value = json!(relative_input);
+    if let Some(object) = value.as_object_mut() {
+        if let Some(message) = response.get("diagnosticMessage") {
+            object.insert("diagnosticMessage".into(), message.clone());
+        }
+        object.insert(
+            "fallbackUsed".into(),
+            json!(response
+                .get("fallbackUsed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)),
+        );
+    }
+    Ok(value)
+}
+
+fn empty_multiple_series() -> MultipleSeries {
+    MultipleSeries {
+        current: None,
+        three_year_median: None,
+        five_year_median: None,
+        peer_median: None,
+        valid_observations: 0,
+        percentile_10: None,
+        percentile_90: None,
+    }
+}
+
 fn send_agent_message_inner(state: &AppState, input: AgentInput) -> Result<Value, String> {
     if !AgentPolicy::default().authorize(AgentPermission::CreateDraft) {
         return Err("代理没有创建草稿权限".into());
@@ -1324,12 +1890,16 @@ impl Runtime {
         std::fs::create_dir_all(&data_directory)?;
         let profiles_directory = data_directory.join("profiles");
         std::fs::create_dir_all(&profiles_directory)?;
+        let catalog_path = data_directory.join("profiles.catalog.db");
         let catalog_key = if deterministic_test_keys {
             Sha256::digest("fin-alfred-test-catalog-key").to_vec()
         } else {
             let secret_name = "profile-catalog.database-key";
             match secret_store.get(secret_name)? {
                 Some(value) => value,
+                None if catalog_path.is_file() => anyhow::bail!(
+                    "加密档案目录存在，但系统凭据中的目录密钥缺失；为防止覆盖旧密钥，fin-alfred 已停止启动"
+                ),
                 None => {
                     let value = generate_database_key().to_vec();
                     secret_store.put(secret_name, &value)?;
@@ -1337,10 +1907,13 @@ impl Runtime {
                 }
             }
         };
-        let catalog = ProfileCatalog::open(
-            &data_directory.join("profiles.catalog.db"),
-            &hex::encode(catalog_key),
-        )?;
+        let catalog =
+            ProfileCatalog::open(&catalog_path, &hex::encode(catalog_key)).map_err(|error| {
+                anyhow::anyhow!(
+                    "无法解密档案目录；系统凭据与 {} 不匹配: {error}",
+                    catalog_path.display()
+                )
+            })?;
         let owner_created = catalog.add("profile-xiaomi-real", "我的投资档案")?;
         let state = AppState {
             catalog,
@@ -1352,10 +1925,18 @@ impl Runtime {
         for item in state.catalog.list()? {
             let database_key =
                 state.database_key(&item.id, owner_created && item.id == "profile-xiaomi-real")?;
-            let database = Arc::new(EncryptedDatabase::open(
-                &state.profiles_directory.join(format!("{}.db", item.id)),
-                &hex::encode(database_key),
-            )?);
+            let profile_path = state.profiles_directory.join(format!("{}.db", item.id));
+            let database = Arc::new(
+                EncryptedDatabase::open(&profile_path, &hex::encode(database_key)).map_err(
+                    |error| {
+                        anyhow::anyhow!(
+                            "无法解密投资档案 {}；系统凭据与 {} 不匹配: {error}",
+                            item.id,
+                            profile_path.display()
+                        )
+                    },
+                )?,
+            );
             if item.id == "profile-xiaomi-real" {
                 initialize_xiaomi_profile(&database)?;
             } else {
@@ -1399,6 +1980,22 @@ impl Runtime {
     pub fn invoke(&self, command: &str, args: Value) -> Result<Value, String> {
         let state = &self.state;
         match command {
+            "list_watchlist" => value(list_watchlist(state, arg(&args, "profileId")?)),
+            "save_instrument" => value(save_instrument(state, arg(&args, "input")?)),
+            "remove_watchlist_instrument" => {
+                value(remove_watchlist_instrument(state, arg(&args, "input")?))
+            }
+            "get_instrument_summary" => value(get_instrument_summary(state, arg(&args, "input")?)),
+            "list_annual_financials" => value(list_annual_financials(state, arg(&args, "input")?)),
+            "save_annual_financials" => value(save_annual_financials(state, arg(&args, "input")?)),
+            "preview_dcf" => preview_dcf(arg(&args, "input")?),
+            "save_dcf_model" => value(save_dcf(state, arg(&args, "input")?)),
+            "preview_relative_valuation" => preview_relative(arg(&args, "input")?),
+            "save_relative_valuation" => value(save_relative(state, arg(&args, "input")?)),
+            "refresh_watchlist_prices" => {
+                value(refresh_watchlist_prices(state, arg(&args, "profileId")?))
+            }
+            "refresh_relative_data" => value(refresh_relative_data(state, arg(&args, "input")?)),
             "get_overview" => value(get_overview(state, optional_arg(&args, "profileId")?)),
             "get_profile_activity" => value(get_profile_activity(state, arg(&args, "profileId")?)),
             "initialize_ledger_baseline" => {
@@ -1917,6 +2514,82 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot.quantity, decimal("213600").unwrap());
         assert_eq!(snapshot.cash, decimal("395000").unwrap());
+    }
+
+    #[test]
+    fn existing_encrypted_catalog_without_system_key_is_never_overwritten() {
+        let directory = tempdir().unwrap();
+        let catalog_path = directory.path().join("profiles.catalog.db");
+        std::fs::write(&catalog_path, b"existing-encrypted-catalog").unwrap();
+        let before = std::fs::read(&catalog_path).unwrap();
+        let secrets = Arc::new(InMemorySecretStore::default());
+
+        let error = Runtime::open(directory.path().to_path_buf(), secrets.clone(), false)
+            .err()
+            .expect("missing key must stop startup");
+
+        assert!(error.to_string().contains("目录密钥缺失"));
+        assert_eq!(std::fs::read(&catalog_path).unwrap(), before);
+        assert!(secrets
+            .get("profile-catalog.database-key")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn watchlist_updates_are_idempotent_and_never_mutate_the_xiaomi_ledger() {
+        let (_directory, state) = test_state();
+        let (_, database) = state.profile("profile-xiaomi-real").unwrap();
+        let before = database
+            .ledger_snapshot("profile-xiaomi-real", "HKEX:1810", "HKD")
+            .unwrap();
+        let rows = list_watchlist(&state, "profile-xiaomi-real".into()).unwrap();
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        let mut instrument: InstrumentProfile =
+            serde_json::from_value(rows[0]["instrument"].clone()).unwrap();
+        instrument.manual_price_override = Some(PriceSnapshot {
+            price: "26.10".into(),
+            previous_close: Some("25.40".into()),
+            observed_at: "2026-08-18T12:00:00+08:00".into(),
+            source: "Manual Override".into(),
+        });
+        let input = SaveInstrumentArgs {
+            profile_id: "profile-xiaomi-real".into(),
+            instrument: instrument.clone(),
+        };
+        save_instrument(&state, input.clone()).unwrap();
+        save_instrument(&state, input).unwrap();
+        let rows = list_watchlist(&state, "profile-xiaomi-real".into()).unwrap();
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert_eq!(rows[0]["lastPrice"], "26.10");
+        assert_eq!(rows[0]["manualOverride"], true);
+
+        remove_watchlist_instrument(
+            &state,
+            ProfileInstrumentArgs {
+                profile_id: "profile-xiaomi-real".into(),
+                instrument_id: "HKEX:1810".into(),
+            },
+        )
+        .unwrap();
+        assert!(list_watchlist(&state, "profile-xiaomi-real".into())
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(get_instrument_summary(
+            &state,
+            ProfileInstrumentArgs {
+                profile_id: "profile-xiaomi-real".into(),
+                instrument_id: "HKEX:1810".into(),
+            },
+        )
+        .is_ok());
+
+        let after = database
+            .ledger_snapshot("profile-xiaomi-real", "HKEX:1810", "HKD")
+            .unwrap();
+        assert_eq!(after, before);
     }
 
     #[test]

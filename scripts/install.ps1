@@ -101,6 +101,7 @@ function Ensure-Prerequisites {
         return
     }
     if (-not (Test-NodeRequirement)) { Install-WingetPackage "OpenJS.NodeJS.LTS" }
+    if (-not (Get-Command "uv.exe" -ErrorAction SilentlyContinue)) { Install-WingetPackage "astral-sh.uv" }
     if (-not $DryRun -and -not (Get-Command "npm.cmd" -ErrorAction SilentlyContinue)) { throw "Node 已安装但 npm 不可用；请重新打开 PowerShell 后重试。" }
     if (-not (Get-Command "rustup.exe" -ErrorAction SilentlyContinue)) { Install-WingetPackage "Rustlang.Rustup" }
     if (-not (Test-PerlRequirement)) { Install-WingetPackage "StrawberryPerl.StrawberryPerl" }
@@ -112,6 +113,7 @@ function Ensure-Prerequisites {
     if ($DryRun) { return }
     Refresh-ProcessPath
     if (-not (Test-NodeRequirement)) { throw "需要 Node 24.19.x。依赖安装后请重新打开 PowerShell并再次运行安装命令。" }
+    if (-not (Get-Command "uv.exe" -ErrorAction SilentlyContinue)) { throw "uv 安装后尚未生效；请重新打开 PowerShell 并再次运行安装命令。" }
     & rustup.exe toolchain install $script:RequiredRust --profile minimal
     if ($LASTEXITCODE -ne 0) { throw "Rust $($script:RequiredRust) 安装失败" }
     if (-not (Test-RustRequirement)) {
@@ -220,6 +222,9 @@ function Build-And-Install {
             if ($LASTEXITCODE -ne 0) { throw "npm ci 失败" }
             & npm.cmd run build
             if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
+            $env:UV_DEFAULT_INDEX = "https://pypi.org/simple"
+            & uv.exe sync --frozen --project data-provider
+            if ($LASTEXITCODE -ne 0) { throw "AKShare 数据环境构建失败" }
             & cargo.exe "+$($script:RequiredRust)" build --release -p fin-alfred-gateway
             if ($LASTEXITCODE -ne 0) { throw "Rust Gateway 构建失败" }
         } finally { Pop-Location }
@@ -227,6 +232,11 @@ function Build-And-Install {
         New-Item -ItemType Directory -Path $staging -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $source "target\release\fin-alfred-gateway.exe") -Destination $staging
         Copy-Item -LiteralPath (Join-Path $source "dist") -Destination $staging -Recurse
+        $providerTarget = Join-Path $staging "data-provider"
+        New-Item -ItemType Directory -Path $providerTarget -Force | Out-Null
+        @("pyproject.toml", "uv.lock", ".python-version", "akshare_adapter.py") | ForEach-Object {
+            Copy-Item -LiteralPath (Join-Path $source "data-provider\$_") -Destination $providerTarget
+        }
         $gateway = Join-Path $staging "fin-alfred-gateway.exe"
         $package = Get-Content -LiteralPath (Join-Path $source "package.json") -Raw | ConvertFrom-Json
         $manifest = [ordered]@{
@@ -248,6 +258,9 @@ function Build-And-Install {
             throw
         }
         if (Test-Path -LiteralPath $previous) { Remove-Item -LiteralPath $previous -Recurse -Force }
+        $env:UV_DEFAULT_INDEX = "https://pypi.org/simple"
+        & uv.exe sync --frozen --project (Join-Path $script:InstallRoot "data-provider")
+        if ($LASTEXITCODE -ne 0) { throw "安装目录中的 AKShare 环境初始化失败" }
 
         New-Item -ItemType Directory -Path $script:BinRoot -Force | Out-Null
         $exe = Join-Path $script:InstallRoot "fin-alfred-gateway.exe"
@@ -255,6 +268,8 @@ function Build-And-Install {
         @(
             "@echo off",
             "rem $($script:ManagedMarker)",
+            ('set "FIN_ALFRED_PROJECT_ROOT={0}"' -f $script:InstallRoot),
+            ('cd /d "{0}"' -f $script:InstallRoot),
             ('"{0}" --static-dir "{1}" %*' -f $exe, $dist)
         ) | Set-Content -LiteralPath $script:Launcher -Encoding ASCII
         Add-UserPath $script:BinRoot

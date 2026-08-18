@@ -30,13 +30,29 @@ async function invoke<T>(command: string, args: Record<string, unknown> = {}): P
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args),
   });
-  const payload = await response.json() as { ok: boolean; value?: T; error?: string };
-  if (!response.ok || !payload.ok) throw new Error(payload.error ?? `Gateway 调用失败：${command}`);
+  const payload = await response.json() as { ok: boolean; value?: T; error?: string; correlationId?: string };
+  if (!response.ok || !payload.ok) {
+    const suffix = payload.correlationId ? ` [关联 ID: ${payload.correlationId}]` : "";
+    throw new Error(`${payload.error ?? `Gateway 调用失败：${command}`}${suffix}`);
+  }
   return payload.value as T;
 }
 
 export class HttpAppBridge implements AppBridge {
   readonly mode = "http" as const;
+
+  listWatchlist(profileId: string) { return invoke<Awaited<ReturnType<AppBridge["listWatchlist"]>>>("list_watchlist", { profileId }); }
+  saveInstrument(profileId: string, instrument: Parameters<AppBridge["saveInstrument"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["saveInstrument"]>>>("save_instrument", { input: { profileId, instrument } }); }
+  removeWatchlistInstrument(profileId: string, instrumentId: string) { return invoke<Awaited<ReturnType<AppBridge["removeWatchlistInstrument"]>>>("remove_watchlist_instrument", { input: { profileId, instrumentId } }); }
+  refreshWatchlistPrices(profileId: string) { return invoke<Awaited<ReturnType<AppBridge["refreshWatchlistPrices"]>>>("refresh_watchlist_prices", { profileId }); }
+  getInstrumentSummary(profileId: string, instrumentId: string) { return invoke<Awaited<ReturnType<AppBridge["getInstrumentSummary"]>>>("get_instrument_summary", { input: { profileId, instrumentId } }); }
+  listAnnualFinancials(profileId: string, instrumentId: string) { return invoke<Awaited<ReturnType<AppBridge["listAnnualFinancials"]>>>("list_annual_financials", { input: { profileId, instrumentId } }); }
+  saveAnnualFinancials(profileId: string, financials: Parameters<AppBridge["saveAnnualFinancials"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["saveAnnualFinancials"]>>>("save_annual_financials", { input: { profileId, financials } }); }
+  previewDcf(profileId: string, input: Parameters<AppBridge["previewDcf"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["previewDcf"]>>>("preview_dcf", { input: { profileId, input } }); }
+  saveDcf(profileId: string, input: Parameters<AppBridge["saveDcf"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["saveDcf"]>>>("save_dcf_model", { input: { profileId, input } }); }
+  refreshRelativeData(profileId: string, instrumentId: string) { return invoke<Awaited<ReturnType<AppBridge["refreshRelativeData"]>>>("refresh_relative_data", { input: { profileId, instrumentId } }); }
+  previewRelativeValuation(profileId: string, input: Parameters<AppBridge["previewRelativeValuation"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["previewRelativeValuation"]>>>("preview_relative_valuation", { input: { profileId, input } }); }
+  saveRelativeValuation(profileId: string, input: Parameters<AppBridge["saveRelativeValuation"]>[1]) { return invoke<Awaited<ReturnType<AppBridge["saveRelativeValuation"]>>>("save_relative_valuation", { input: { profileId, input } }); }
 
   getOverview(profileId?: string) {
     return invoke<Awaited<ReturnType<AppBridge["getOverview"]>>>("get_overview", { profileId });
@@ -182,5 +198,20 @@ export class HttpAppBridge implements AppBridge {
 
   migrateLegacyProfiles() {
     return invoke<Awaited<ReturnType<AppBridge["migrateLegacyProfiles"]>>>("migrate_legacy_profiles");
+  }
+
+  listDiagnostics(filter: Parameters<AppBridge["listDiagnostics"]>[0] = {}) {
+    return invoke<Awaited<ReturnType<AppBridge["listDiagnostics"]>>>("list_diagnostics", { filter });
+  }
+
+  async reportClientDiagnostic(event: Parameters<AppBridge["reportClientDiagnostic"]>[0]) {
+    await invoke("report_client_diagnostic", { event });
+  }
+
+  async exportDiagnosticBundle() {
+    const result = await invoke<{ data: string }>("export_diagnostic_bundle");
+    const normalized = result.data.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+    return new Blob([Uint8Array.from(binary, (character) => character.charCodeAt(0))], { type: "application/zip" });
   }
 }

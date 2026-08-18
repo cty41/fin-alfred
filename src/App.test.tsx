@@ -1,55 +1,67 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
-describe("research workbench", () => {
-  it("shows the real Xiaomi stage-one completion without presenting a trade action", async () => {
+async function openXiaomi() {
+  fireEvent.click(await screen.findByRole("button", { name: "小 小米集团-W 01810" }));
+  expect(await screen.findByRole("button", { name: "Summary" })).toBeInTheDocument();
+}
+
+describe("Alpha Spread style prototype", () => {
+  it("uses Watchlist as the only prototype entry point", async () => {
     render(<App />);
-    expect(await screen.findByText("213,600股")).toBeInTheDocument();
-    expect(screen.getByText("已由真实成交完成，禁止重复建议")).toBeInTheDocument();
-    expect(screen.queryByText("执行交易")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Watchlist" })).toBeInTheDocument();
+    for (const heading of ["Company", "Price Graph", "Last Price", "Buy Price", "Intrinsic Value", "Relative Value"]) {
+      expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
+    }
+    expect(await screen.findByRole("button", { name: "小 小米集团-W 01810" })).toBeInTheDocument();
+    expect(screen.queryByText("AI 对话")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "决策" })).not.toBeInTheDocument();
   });
 
-  it("creates a draft artifact but never publishes it", async () => {
+  it("keeps the real Xiaomi ledger state read-only on Summary", async () => {
     render(<App />);
-    const input = await screen.findByLabelText("向研究助手提问");
-    fireEvent.change(input, { target: { value: "为Stage 2生成策略草稿" } });
-    fireEvent.click(screen.getByRole("button", { name: "发送" }));
-    expect(await screen.findByRole("region", { name: "发送内容预览" })).toBeInTheDocument();
-    expect(screen.getByText(/排除：API密钥/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "确认发送" }));
-    expect(await screen.findByText("小米 Stage 2 反弹减仓检查表")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("策略草稿 · 未发布")).toBeInTheDocument());
-    expect(screen.queryByText("发布策略")).not.toBeInTheDocument();
+    await openXiaomi();
+    expect(screen.getByText("213,600 股")).toBeInTheDocument();
+    expect(screen.getByText("HK$395,000")).toBeInTheDocument();
+    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByText(/不提供交易操作/)).toBeInTheDocument();
   });
 
-  it("does not accept BYOK secrets in browser preview mode", async () => {
+  it("exposes only the four individual-company analysis tabs", async () => {
     render(<App />);
-    await screen.findByText("213,600股");
+    await openXiaomi();
+    for (const tab of ["Summary", "Financials", "DCF Valuation", "Relative Valuation"]) {
+      expect(screen.getByRole("button", { name: tab })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: /李录/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Burry/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps valuation inputs inside calculation dialogs", async () => {
+    render(<App />);
+    await openXiaomi();
+    fireEvent.click(screen.getByRole("button", { name: "DCF Valuation" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Calculation" }));
+    expect(screen.getByRole("dialog", { name: /DCF Model/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Starting Revenue")).toBeInTheDocument();
+  });
+
+  it("identifies intentionally hidden first-version functions in Settings", async () => {
+    render(<App />);
+    await screen.findByRole("heading", { name: "Watchlist" });
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
-    expect(screen.getByLabelText("API Key")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "保存BYOK配置" })).toBeDisabled();
+    expect(screen.getByText("AI、MCP、交易和策略功能在此原型中已隐藏。")).toBeInTheDocument();
   });
 
-  it("creates and switches to an isolated family profile", async () => {
+  it("opens the development diagnostics viewer from Settings", async () => {
     render(<App />);
-    await screen.findByText("213,600股");
-    fireEvent.click(screen.getByRole("button", { name: "＋ 新建档案" }));
-    fireEvent.change(screen.getByLabelText("新档案名称"), { target: { value: "家人投资档案" } });
-    fireEvent.click(screen.getByRole("button", { name: "创建" }));
-    expect((await screen.findAllByText("先录入并核验该档案的初始持仓")).length).toBe(4);
-    expect((screen.getByLabelText("切换投资档案") as HTMLSelectElement).value).toMatch(/^profile-/);
-    fireEvent.change(screen.getByLabelText("切换投资档案"), { target: { value: "profile-xiaomi-real" } });
-    expect(await screen.findByText("213,600股")).toBeInTheDocument();
-    expect(screen.getByText("已由真实成交完成，禁止重复建议")).toBeInTheDocument();
-  });
-
-  it("switches the internationalized application shell to English", async () => {
-    render(<App />);
-    await screen.findByText("213,600股");
-    fireEvent.click(screen.getByLabelText("切换语言"));
-    expect(screen.getByRole("button", { name: /Portfolio/ })).toBeInTheDocument();
-    expect(screen.getByText("Browser demo mode")).toBeInTheDocument();
-    expect(document.documentElement.lang).toBe("en");
+    await screen.findByRole("heading", { name: "Watchlist" });
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开开发诊断" }));
+    expect(await screen.findByRole("dialog", { name: "开发诊断" })).toBeInTheDocument();
+    expect(await screen.findByText("refresh_watchlist_prices")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /导出诊断包/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("搜索日志")).toBeInTheDocument();
   });
 });

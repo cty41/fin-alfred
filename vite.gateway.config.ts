@@ -9,9 +9,9 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     proxy: {
-      "/api": { target: "http://127.0.0.1:43117" },
-      "/mcp": { target: "http://127.0.0.1:43117" },
-      "/health": { target: "http://127.0.0.1:43117" },
+      "/api": { target: process.env.FIN_ALFRED_GATEWAY_URL ?? "http://127.0.0.1:43117" },
+      "/mcp": { target: process.env.FIN_ALFRED_GATEWAY_URL ?? "http://127.0.0.1:43117" },
+      "/health": { target: process.env.FIN_ALFRED_GATEWAY_URL ?? "http://127.0.0.1:43117" },
     },
     watch: { ignored: ["**/target/**", "**/node_modules/**"] },
   },

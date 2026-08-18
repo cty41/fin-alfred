@@ -230,3 +230,63 @@ export interface ProfileActivity {
   decisions: Array<{ decision_key: string; status: string; target_quantity: string; filled_quantity: string; snapshot: { strategy_version: string; engine_version: string; facts: Record<string, string> }; resolution_reason?: string; superseded_by?: string }>;
   audits: Array<{ id: number; profileId: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown; createdAt: string }>;
 }
+
+export interface PriceSnapshot { price: string; previousClose?: string | null; observedAt: string; source: string }
+export interface InstrumentProfile {
+  instrumentId: string; symbol: string; name: string; currency: string;
+  announcementUrl: string; investorRelationsUrl: string; buyPrice?: string | null;
+  priceSnapshots: PriceSnapshot[]; manualPriceOverride?: PriceSnapshot | null;
+}
+export interface WatchlistRow {
+  instrument: InstrumentProfile; lastPrice?: string | null; previousClose?: string | null;
+  priceSource?: string | null; manualOverride: boolean; priceHistory: string[];
+  dcfBase?: string | null; relativeBase?: string | null;
+}
+export interface AnnualFinancials {
+  instrumentId: string; year: number; currency: string; revenue: string; netIncome: string;
+  cash: string; debt: string; equity: string; operatingCashFlow: string; capex: string;
+  sourceUrl: string; updatedAt: string;
+}
+export interface DcfScenarioInput { revenueGrowth: string; endingNetMargin: string; cashConversion: string; discountRate: string; exitPe: string }
+export interface DcfInput {
+  instrumentId: string; startingRevenue: string; startingNetMargin: string; dilutedShares: string;
+  forecastYears: number; bear: DcfScenarioInput; base: DcfScenarioInput; bull: DcfScenarioInput; asOf: string;
+}
+export interface DcfProjectionRow { year: number; revenue: string; netMargin: string; netIncome: string; fcfeProxy: string; discountedFcfe: string }
+export interface DcfScenarioResult { valuePerShare: string; pvForecastFcfe: string; pvTerminalValue: string; equityValue: string; terminalValueShare: string; projection: DcfProjectionRow[] }
+export interface DcfResult { input: DcfInput; bear: DcfScenarioResult; base: DcfScenarioResult; bull: DcfScenarioResult; contentHash: string }
+export interface MultipleSeries {
+  current?: string | null; threeYearMedian?: string | null; fiveYearMedian?: string | null; peerMedian?: string | null;
+  validObservations: number; percentile10?: string | null; percentile90?: string | null;
+}
+export interface ComparableInstrument { symbol: string; name: string; pe?: string | null; pcf?: string | null; included: boolean; updatedAt?: string | null }
+export interface RelativeInput {
+  instrumentId: string; normalizedEps: string; normalizedOcfPerShare: string; pe: MultipleSeries; pcf: MultipleSeries;
+  peers: ComparableInstrument[]; source: string; fetchedAt?: string | null; asOf: string;
+}
+export interface ImpliedPrice { metric: string; reference: string; multiple: string; price: string }
+export interface RelativeResult { input: RelativeInput; bear?: string | null; base?: string | null; bull?: string | null; confidence: string; impliedPrices: ImpliedPrice[]; contentHash: string }
+export interface InstrumentSummary {
+  instrument: InstrumentProfile; price?: PriceSnapshot | null; financials: AnnualFinancials[];
+  dcf?: DcfResult | null; relative?: RelativeResult | null;
+  ledger?: { profileId: string; instrumentId: string; quantity: string; cash: string; currency: string } | null;
+  stageOneCompleted: boolean;
+}
+
+export type DiagnosticLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+export interface DiagnosticEvent {
+  id: string; timestamp: string; level: DiagnosticLevel; component: string; operation: string;
+  result: string; message: string; correlationId: string; durationMs?: number | null;
+  source?: string | null; fallbackUsed: boolean;
+}
+export interface DiagnosticFilter {
+  levels?: DiagnosticLevel[]; components?: string[]; query?: string;
+  since?: string; until?: string; cursor?: number; limit?: number;
+}
+export interface DiagnosticPage {
+  events: DiagnosticEvent[]; nextCursor?: number | null; total: number; components: string[];
+  summary: { status: string; version: string; uptimeSeconds: number; lastError?: DiagnosticEvent | null };
+}
+export interface ClientDiagnosticInput {
+  level: DiagnosticLevel; operation: string; message: string; correlationId?: string;
+}

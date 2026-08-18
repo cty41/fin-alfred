@@ -1,6 +1,8 @@
 # fin-alfred
 
-本地优先、可审计、幂等的价值投资研究与决策助手。当前版本从源码构建 Windows 本地 Gateway，并在浏览器中使用；预编译分发留待功能闭环稳定后处理。LLM 采用 BYOK，权限固定为读取、分析和创建草稿，不能修改正式状态或执行交易。
+本地优先的价值投资研究助手。当前第一原型以 Watchlist 为入口，提供 Summary、年度 Financials、DCF Valuation 与 Relative Valuation 四个个股页面。AI、策略、决策与交易界面暂时隐藏，已有后端数据和权限边界继续保留。
+
+正式数据只经本机 Rust Gateway 访问；行情以及港股 P/E、P/CF 历史由锁定版本的 AKShare 适配器按用户操作刷新。上游失败不会清空已有缓存。
 
 ## Windows 一键安装
 
@@ -8,7 +10,7 @@
 irm https://raw.githubusercontent.com/cty41/fin-alfred/main/scripts/install.ps1 | iex
 ```
 
-安装器会检查并通过 `winget` 补齐 Node、Rust、C++ Build Tools 和 Strawberry Perl，从确定的 Git 提交构建程序，然后创建 `fin-alfred` 命令。首次构建可能较慢并请求管理员权限；安装后新开 PowerShell，运行 `fin-alfred` 即可启动。程序位于 `%LOCALAPPDATA%\Programs\fin-alfred`，加密档案独立保存在 `%LOCALAPPDATA%\fin-alfred`。
+安装器会检查并通过 `winget` 补齐 Node、Rust、uv、C++ Build Tools 和 Strawberry Perl，从确定的 Git 提交构建程序，同步隔离的 Python 3.12 + AKShare 环境，然后创建 `fin-alfred` 命令。首次构建可能较慢并请求管理员权限；安装后新开 PowerShell，运行 `fin-alfred` 即可启动。程序位于 `%LOCALAPPDATA%\Programs\fin-alfred`，加密档案独立保存在 `%LOCALAPPDATA%\fin-alfred`。
 
 审阅脚本后安装：
 
@@ -26,10 +28,11 @@ notepad install.ps1
 
 ## 开发
 
-工具链固定为 Node.js 24.19.x、npm 和 Rust 1.97.1。Windows 构建还需要 Visual Studio Build Tools（Desktop development with C++）与 Strawberry Perl（编译 vendored OpenSSL/SQLCipher）。
+工具链固定为 Node.js 24.19.x、npm、Rust 1.97.1 和 uv 0.12.2。uv 按 `data-provider/uv.lock` 管理独立 Python 3.12 与 AKShare，不读取或污染用户已有的 Python。Windows 构建还需要 Visual Studio Build Tools（Desktop development with C++）与 Strawberry Perl（编译 vendored OpenSSL/SQLCipher）。
 
 ```powershell
 npm ci
+uv sync --frozen --project data-provider
 npm run dev
 npm run gateway:dev
 npm run gateway:run
@@ -42,7 +45,15 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-`npm run dev` 只使用 `MockAppBridge`，不会读取真实账本或密钥。`npm run gateway:dev` 启动 Vite 与本地 Rust Gateway；`npm run gateway:run` 构建静态页面后由 Gateway 直接提供，不依赖 Vite。
+`npm run dev` 只使用 `MockAppBridge`，不会读取真实账本、密钥或联网行情。`npm run gateway:dev` 会先校验锁定的 AKShare 环境，再启动 Vite 与本地 Rust Gateway并打开浏览器；`npm run gateway:run` 构建静态页面后由 Gateway 直接提供，不依赖 Vite。
+
+## 第一原型的数据口径
+
+- Watchlist：单档案一个列表；行情只在点击 `Refresh Prices` 后刷新，支持人工价格覆盖。
+- Financials：年度数据手工维护；`FCF Proxy = Operating Cash Flow - Capex`，仅作简化历史参考。
+- DCF：五年 FCFE Proxy、利润率线性过渡和 Exit P/E 终值，Bear/Base/Bull 假设分别保存。
+- Relative：P/E 与 P/CF 的 3Y、5Y及同行中位数参照；当前倍数只比较，不参与最终估值。
+- 小米真实持仓、现金与 Stage 1 完成状态只读展示，刷新研究数据不会修改账本。
 
 ## 安全边界
 

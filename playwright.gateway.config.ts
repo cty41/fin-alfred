@@ -6,7 +6,7 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:1420" },
   webServer: {
     command: "node scripts/gateway-dev.mjs",
-    url: "http://127.0.0.1:43117/health",
+    url: "http://127.0.0.1:43118/health",
     reuseExistingServer: false,
     timeout: 600_000,
     env: {
@@ -14,6 +14,8 @@ export default defineConfig({
       FIN_ALFRED_BOOTSTRAP_TOKEN: "gateway-e2e-bootstrap",
       FIN_ALFRED_NO_OPEN: "1",
       FIN_ALFRED_TEST_DATA_DIR: "target/gateway-e2e-data",
+      FIN_ALFRED_TEST_ADDRESS: "127.0.0.1:43118",
+      FIN_ALFRED_GATEWAY_URL: "http://127.0.0.1:43118",
     },
   },
 });

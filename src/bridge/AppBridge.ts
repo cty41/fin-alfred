@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentReply, AgentTransmissionPreview, CashDeploymentInput, ContextManifest, DecisionEvaluation, DecisionExecutionInput, FundamentalInput, LlmConfigurationInput, LlmConfigurationStatus, ManualExecutionInput, MarketProviderConfiguration, ProfileActivity, ProfileOverview, ReverseDcfInput, SotpInput, StrategyDraftInput, ValueAssessmentInput, XiaomiSignals } from "../domain/types";
+import type { AgentMessage, AgentReply, AgentTransmissionPreview, AnnualFinancials, CashDeploymentInput, ClientDiagnosticInput, ContextManifest, DcfInput, DcfResult, DecisionEvaluation, DecisionExecutionInput, DiagnosticFilter, DiagnosticPage, FundamentalInput, InstrumentProfile, InstrumentSummary, LlmConfigurationInput, LlmConfigurationStatus, ManualExecutionInput, MarketProviderConfiguration, ProfileActivity, ProfileOverview, RelativeInput, RelativeResult, ReverseDcfInput, SotpInput, StrategyDraftInput, ValueAssessmentInput, WatchlistRow, XiaomiSignals } from "../domain/types";
 
 export interface AgentMessageInput {
   conversationId: string;
@@ -9,6 +9,18 @@ export interface AgentMessageInput {
 
 export interface AppBridge {
   readonly mode: "mock" | "memory" | "http";
+  listWatchlist(profileId: string): Promise<WatchlistRow[]>;
+  saveInstrument(profileId: string, instrument: InstrumentProfile): Promise<InstrumentProfile>;
+  removeWatchlistInstrument(profileId: string, instrumentId: string): Promise<{ removed: boolean }>;
+  refreshWatchlistPrices(profileId: string): Promise<{ updated: number; fetchedAt?: string }>;
+  getInstrumentSummary(profileId: string, instrumentId: string): Promise<InstrumentSummary>;
+  listAnnualFinancials(profileId: string, instrumentId: string): Promise<AnnualFinancials[]>;
+  saveAnnualFinancials(profileId: string, financials: AnnualFinancials): Promise<AnnualFinancials>;
+  previewDcf(profileId: string, input: DcfInput): Promise<DcfResult>;
+  saveDcf(profileId: string, input: DcfInput): Promise<{ inserted: boolean; result: DcfResult }>;
+  refreshRelativeData(profileId: string, instrumentId: string): Promise<RelativeInput>;
+  previewRelativeValuation(profileId: string, input: RelativeInput): Promise<RelativeResult>;
+  saveRelativeValuation(profileId: string, input: RelativeInput): Promise<{ inserted: boolean; result: RelativeResult }>;
   getOverview(profileId?: string): Promise<ProfileOverview>;
   listProfiles(): Promise<Array<{ id: string; name: string }>>;
   createProfile(name: string): Promise<{ id: string; name: string }>;
@@ -44,4 +56,7 @@ export interface AppBridge {
   createMcpToken(profileId: string): Promise<{ token: string }>;
   getLegacyMigration(): Promise<{ available: boolean; directory?: string; profiles: Array<{ sourceId: string; name: string; quantity: string; cash: string; migrated: boolean }> }>;
   migrateLegacyProfiles(): Promise<{ imported: Array<{ id: string; name: string }> }>;
+  listDiagnostics(filter?: DiagnosticFilter): Promise<DiagnosticPage>;
+  reportClientDiagnostic(event: ClientDiagnosticInput): Promise<void>;
+  exportDiagnosticBundle(): Promise<Blob>;
 }

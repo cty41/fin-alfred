@@ -23,7 +23,7 @@ axum = "0.8.4"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
 dirs = "6"
-keyring = "3"
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
 rand = "0.8"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl", "chrono", "backup", "serialize"] }
@@ -39,3 +39,4 @@ tower-http = { version = "0.6", features = ["fs"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 webbrowser = "1"
 zeroize = "1"
+zip = { version = "6", default-features = false, features = ["deflate"] }

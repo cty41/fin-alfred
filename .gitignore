@@ -1,4 +1,4 @@
-# Dependencies and build output
+﻿# Dependencies and build output
 node_modules/
 data-provider/.venv/
 dist/
@@ -52,10 +52,3 @@ nul
 
 # Local temporary research artifacts
 /tmp/
-
-# v1 legacy directories locked on disk; canonical copies live under legacy/
-/crates/
-/src/
-/Cargo.toml
-/Cargo.lock
-/rust-toolchain.toml

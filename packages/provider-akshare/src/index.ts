@@ -80,3 +80,5 @@ export class AkshareProvider {
     return this.run("relative", { symbol });
   }
 }
+
+export { fetchPriceSync } from "./sync.js";

@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { exec } from "node:child_process";
 import * as db from "./db.js";
-import { AkshareProvider } from "@fin-alfred/provider-akshare";
+import { fetchPriceSync } from "@fin-alfred/provider-akshare";
 
 export interface CommandResult {
   ok: boolean;
@@ -83,7 +83,19 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
       if (!instrumentId) return { ok: false, message: "用法: quote <instrument_id> [--refresh]" };
       const refresh = parts.includes("--refresh");
       if (refresh) {
-        return { ok: true, message: `正在获取 ${instrumentId} 实时行情...`, data: { async: "quote", instrumentId } };
+        const result = fetchPriceSync(instrumentId);
+        if (result.error) {
+          return { ok: false, message: `行情获取失败: ${result.error}\n已保留上一次有效缓存。` };
+        }
+        if (!result.price) {
+          return { ok: false, message: `行情获取成功但未返回价格。` };
+        }
+        db.cachePrice(dbConn, instrumentId, result.price, result.previousClose ?? null, result.observedAt ?? new Date().toISOString().slice(0, 10), result.source ?? "akshare");
+        return {
+          ok: true,
+          message: `${instrumentId} 最新价: ${result.price} (昨收: ${result.previousClose ?? "—"}, 来源: ${result.source ?? "akshare"}, ${result.observedAt})`,
+          data: { price: result.price, previousClose: result.previousClose, observedAt: result.observedAt },
+        };
       }
       const cached = db.getLatestPrice(dbConn, instrumentId);
       if (!cached) return { ok: true, message: `${instrumentId} 暂无价格缓存。运行 quote <id> --refresh 获取。` };
@@ -456,6 +468,7 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
       };
   }
 }
+
 
 
 

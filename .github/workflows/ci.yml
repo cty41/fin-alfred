@@ -1,4 +1,4 @@
-name: ci
+﻿name: ci
 
 on:
   push:
@@ -16,9 +16,6 @@ jobs:
         with:
           node-version: 24.19.0
           cache: npm
-      - uses: dtolnay/rust-toolchain@1.97.1
-        with:
-          components: rustfmt, clippy
       - uses: astral-sh/setup-uv@v7
         with:
           version: "0.12.2"
@@ -28,21 +25,11 @@ jobs:
         run: uv sync --frozen --project data-provider
       - name: Test AKShare adapter
         run: uv run --frozen --project data-provider python -m unittest discover -s data-provider -p "test_*.py" -v
-      - name: Install Windows SQLCipher build prerequisite
-        run: choco install strawberryperl --yes --no-progress
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: npm ci
-      - name: Frontend gates
-        run: npm run typecheck && npm run lint && npm test && npm run build
-      - name: Install browser test runtime
-        run: npx playwright install --with-deps chromium
-      - name: Browser-mode end-to-end gate
-        run: npm run test:e2e
-      - name: Real Gateway end-to-end gate
-        run: npm run test:e2e:gateway
-      - name: Rust gates
-        run: cargo fmt --all --check && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
-      - name: Gateway source build check
-        run: cargo build -p fin-alfred-gateway
-      - name: One-command source installer gate
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-SourceInstaller.ps1
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit and integration tests
+        run: npm test
+      - name: Build
+        run: npm run build

@@ -1,0 +1,9 @@
+﻿{
+  "name": "@fin-alfred/cli",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "bin": { "alfred": "dist/main.js" },
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@fin-alfred/core": "*", "@fin-alfred/gateway": "*" }
+}

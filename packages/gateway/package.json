@@ -1,0 +1,13 @@
+﻿{
+  "name": "@fin-alfred/gateway",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/server.d.ts", "default": "./dist/server.js" },
+    "./db": { "types": "./dist/db.d.ts", "default": "./dist/db.js" },
+    "./engine": { "types": "./dist/engine.d.ts", "default": "./dist/engine.js" }
+  },
+  "scripts": { "build": "tsc -b", "start": "node dist/server.js" },
+  "dependencies": { "@fin-alfred/core": "*", "@fin-alfred/provider-akshare": "*" }
+}

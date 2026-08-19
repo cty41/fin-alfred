@@ -52,3 +52,10 @@ nul
 
 # Local temporary research artifacts
 /tmp/
+
+# v1 legacy directories locked on disk; canonical copies live under legacy/
+/crates/
+/src/
+/Cargo.toml
+/Cargo.lock
+/rust-toolchain.toml

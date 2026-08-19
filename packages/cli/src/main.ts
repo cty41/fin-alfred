@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env node
-import * as readline from "node:readline/promises";
-import { stdin, stdout } from "node:process";
+import * as readline from "node:readline";
+import { stdin, stdout, exit } from "node:process";
 import { openDatabase, createSession, listSessions } from "@fin-alfred/gateway/db";
 import { executeCommand } from "@fin-alfred/gateway/engine";
 import { randomUUID } from "node:crypto";
@@ -33,35 +33,6 @@ const GUIDE = `
 随时输入 help 查看全部命令。
 `;
 
-async function main(): Promise<void> {
-  const db = openDatabase();
-  const sessionId = randomUUID();
-  createSession(db, sessionId, "cli");
-
-  console.log("fin-alfred v0.2 — 确定性价值投资助手");
-  console.log("输入 help 查看命令，输入 exit 退出。\n");
-
-  // First-run guide: show if no prior sessions (excluding the one we just created)
-  const sessions = listSessions(db);
-  if (sessions.length <= 1) {
-    console.log(GUIDE);
-  }
-
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  while (true) {
-    const line = (await rl.question("alfred> ")).trim();
-    if (!line) continue;
-    if (line === "exit" || line === "quit") break;
-    const result = executeCommand(db, line);
-    console.log(result.message);
-    if (result.table) {
-      printTable(result.table.headers, result.table.rows);
-    }
-    console.log("");
-  }
-  rl.close();
-}
-
 function printTable(headers: string[], rows: string[][]): void {
   const widths = headers.map((h, i) =>
     Math.max(displayWidth(h), ...rows.map((r) => displayWidth(r[i] ?? ""))),
@@ -75,7 +46,7 @@ function printTable(headers: string[], rows: string[][]): void {
 
 function displayWidth(s: string): number {
   let w = 0;
-  for (const ch of s) w += ch.codePointAt(0)! > 0x2e7f ? 2 : 1;
+  for (const ch of s) w += (ch.codePointAt(0) ?? 0) > 0x2e7f ? 2 : 1;
   return w;
 }
 
@@ -84,7 +55,37 @@ function padDisplay(s: string, target: number): string {
   return s + " ".repeat(Math.max(0, pad));
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+function handle(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (trimmed === "exit" || trimmed === "quit") return true;
+  const result = executeCommand(db, trimmed);
+  console.log(result.message);
+  if (result.table) printTable(result.table.headers, result.table.rows);
+  console.log("");
+  return false;
+}
+
+const db = openDatabase();
+createSession(db, randomUUID(), "cli");
+
+console.log("fin-alfred v0.2 — 确定性价值投资助手");
+console.log("输入 help 查看命令，输入 exit 退出。\n");
+
+if (listSessions(db).length <= 1) console.log(GUIDE);
+
+const interactive = Boolean(process.stdin.isTTY);
+const rl = readline.createInterface({ input: stdin, output: stdout, terminal: interactive });
+
+if (interactive) {
+  const prompt = () => rl.question("alfred> ", (line) => {
+    if (handle(line)) { rl.close(); exit(0); }
+    prompt();
+  });
+  prompt();
+} else {
+  rl.on("line", (line) => {
+    if (handle(line)) { rl.close(); exit(0); }
+  });
+  rl.on("close", () => exit(0));
+}

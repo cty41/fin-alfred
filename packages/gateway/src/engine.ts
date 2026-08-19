@@ -15,7 +15,7 @@ export interface CommandResult {
   table?: { headers: string[]; rows: string[][] };
 }
 
-const HELP_TEXT = `fin-alfred — 确定性价值投资助手 (无 LLM 内核)
+const HELP_TEXT = `fin-alfred — 确定性价值投资助手（可选本地 LLM）
 
 数据管理:
   watchlist add|remove|list          自选列表

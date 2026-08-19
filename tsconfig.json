@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/provider-akshare" },
+    { "path": "packages/provider-llm" },
     { "path": "packages/gateway" },
     { "path": "packages/cli" }
   ]

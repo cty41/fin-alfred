@@ -1,8 +1,9 @@
 ﻿#!/usr/bin/env node
 import * as readline from "node:readline";
-import { stdin, stdout, exit } from "node:process";
+import { stdin, stdout, exit, argv, env, platform } from "node:process";
+import { spawn } from "node:child_process";
 import { openDatabase, createSession, listSessions } from "@fin-alfred/gateway/db";
-import { executeCommand } from "@fin-alfred/gateway/engine";
+import { AgentSession, agentResultToCommandResult } from "@fin-alfred/gateway/agent";
 import { randomUUID } from "node:crypto";
 
 const GUIDE = `
@@ -55,37 +56,69 @@ function padDisplay(s: string, target: number): string {
   return s + " ".repeat(Math.max(0, pad));
 }
 
-function handle(line: string): boolean {
+async function handle(line: string): Promise<boolean> {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (trimmed === "exit" || trimmed === "quit") return true;
-  const result = executeCommand(db, trimmed);
+  const result = agentResultToCommandResult(await agent.process(trimmed));
   console.log(result.message);
   if (result.table) printTable(result.table.headers, result.table.rows);
   console.log("");
   return false;
 }
 
-const db = openDatabase();
-createSession(db, randomUUID(), "cli");
+let db: ReturnType<typeof openDatabase>;
+let agent: AgentSession;
 
-console.log("fin-alfred v0.2 — 确定性价值投资助手");
-console.log("输入 help 查看命令，输入 exit 退出。\n");
+async function runRepl(): Promise<void> {
+  db = openDatabase();
+  agent = new AgentSession(db);
+  createSession(db, randomUUID(), "cli");
 
-if (listSessions(db).length <= 1) console.log(GUIDE);
+  console.log("fin-alfred v0.2 — 确定性价值投资助手");
+  console.log("输入 help 查看命令，输入 exit 退出。\n");
+  if (listSessions(db).length <= 1) console.log(GUIDE);
 
-const interactive = Boolean(process.stdin.isTTY);
-const rl = readline.createInterface({ input: stdin, output: stdout, terminal: interactive });
-
-if (interactive) {
-  const prompt = () => rl.question("alfred> ", (line) => {
-    if (handle(line)) { rl.close(); exit(0); }
+  const interactive = Boolean(stdin.isTTY);
+  const rl = readline.createInterface({ input: stdin, output: stdout, terminal: interactive });
+  if (interactive) {
+    const prompt = () => rl.question("alfred> ", async (line) => {
+      if (await handle(line)) { rl.close(); exit(0); }
+      prompt();
+    });
     prompt();
-  });
-  prompt();
-} else {
-  rl.on("line", (line) => {
-    if (handle(line)) { rl.close(); exit(0); }
-  });
-  rl.on("close", () => exit(0));
+  } else {
+    let pending = Promise.resolve(false);
+    rl.on("line", (line) => {
+      pending = pending.then(async (stopped) => stopped || handle(line));
+    });
+    rl.on("close", async () => exit((await pending) ? 0 : 0));
+  }
+}
+
+function dashboardUrl(): string {
+  return `http://127.0.0.1:${Number(env.ALFRED_PORT ?? 43117)}`;
+}
+
+function openDashboard(url: string): void {
+  const command = platform === "win32" ? "cmd.exe" : platform === "darwin" ? "open" : "xdg-open";
+  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+  child.on("error", (error) => console.error(`无法打开浏览器：${error.message}\n请手动访问 ${url}`));
+  child.unref();
+}
+
+const [subcommand, ...subcommandArgs] = argv.slice(2);
+switch (subcommand) {
+  case "gateway":
+    await import("@fin-alfred/gateway");
+    break;
+  case "dashboard": {
+    const url = dashboardUrl();
+    console.log(`fin-alfred dashboard: ${url}`);
+    if (!subcommandArgs.includes("--no-open")) openDashboard(url);
+    break;
+  }
+  default:
+    await runRepl();
 }

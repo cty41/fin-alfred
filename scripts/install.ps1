@@ -72,7 +72,7 @@ node "%LOCALAPPDATA%\Programs\fin-alfred\src\packages\cli\dist\main.js" %*
 $gatewayShim = Join-Path $shimDir "fin-alfred-web.cmd"
 @"
 @echo off
-node "%LOCALAPPDATA%\Programs\fin-alfred\src\packages\gateway\dist\server.js" %*
+call "%LOCALAPPDATA%\Programs\fin-alfred\bin\fin-alfred.cmd" gateway %*
 "@ | Set-Content -Encoding ascii $gatewayShim
 
 # 5. PATH
@@ -87,5 +87,7 @@ if ($currentUserPath -notlike "*$shimDir*") {
 Write-Host ""
 Write-Host "fin-alfred installed successfully!" -ForegroundColor Green
 Write-Host "  CLI:   fin-alfred"
-Write-Host "  Web:   fin-alfred-web  (then open http://127.0.0.1:43117)"
+Write-Host "  Gateway:   fin-alfred gateway"
+Write-Host "  Dashboard: fin-alfred dashboard"
+Write-Host "  Legacy:    fin-alfred-web"
 Write-Host "  Data:  %LOCALAPPDATA%\fin-alfred"

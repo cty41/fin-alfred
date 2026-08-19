@@ -6,8 +6,13 @@
   "exports": {
     ".": { "types": "./dist/server.d.ts", "default": "./dist/server.js" },
     "./db": { "types": "./dist/db.d.ts", "default": "./dist/db.js" },
-    "./engine": { "types": "./dist/engine.d.ts", "default": "./dist/engine.js" }
+    "./engine": { "types": "./dist/engine.d.ts", "default": "./dist/engine.js" },
+    "./agent": { "types": "./dist/agent.d.ts", "default": "./dist/agent.js" }
   },
   "scripts": { "build": "tsc -b", "start": "node dist/server.js" },
-  "dependencies": { "@fin-alfred/core": "*", "@fin-alfred/provider-akshare": "*" }
+  "dependencies": {
+    "@fin-alfred/core": "*",
+    "@fin-alfred/provider-akshare": "*",
+    "@fin-alfred/provider-llm": "*"
+  }
 }

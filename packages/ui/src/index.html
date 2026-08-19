@@ -77,7 +77,7 @@ async function send() {
   inputEl.value = "";
   addMsg("user", cmd);
   try {
-    const res = await fetch(API + "/api/v1/exec", { method: "POST", headers: {"content-type":"application/json"}, body: JSON.stringify({ command: cmd, sessionId }) });
+    const res = await fetch(API + "/api/v1/chat", { method: "POST", headers: {"content-type":"application/json"}, body: JSON.stringify({ input: cmd, sessionId }) });
     const result = await res.json();
     addMsg("alfred" + (result.ok ? "" : " error"), result.message, result.table);
   } catch (e) {

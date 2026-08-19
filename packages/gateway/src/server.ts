@@ -2,11 +2,13 @@
 import { randomUUID } from "node:crypto";
 import { openDatabase, createSession, addSessionMessage, getSessionMessages, listSessions } from "./db.js";
 import { executeCommand } from "./engine.js";
+import { AgentSession, agentResultToCommandResult } from "./agent.js";
 
 const PORT = Number(process.env.ALFRED_PORT ?? 43117);
 const HOST = "127.0.0.1";
 
 const db = openDatabase();
+const agent = new AgentSession(db);
 
 function json(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -65,6 +67,18 @@ const server = http.createServer(async (req, res) => {
       const result = executeCommand(db, command);
       if (sessionId) {
         addSessionMessage(db, sessionId, "user", command);
+        addSessionMessage(db, sessionId, "alfred", result.message);
+      }
+      return json(res, 200, result);
+    }
+
+    if (p === "/api/v1/chat" && req.method === "POST") {
+      const body = await readBody(req);
+      const sessionId = body.sessionId as string | undefined;
+      const input = String(body.input ?? body.command ?? "");
+      const result = agentResultToCommandResult(await agent.process(input));
+      if (sessionId) {
+        addSessionMessage(db, sessionId, "user", input);
         addSessionMessage(db, sessionId, "alfred", result.message);
       }
       return json(res, 200, result);

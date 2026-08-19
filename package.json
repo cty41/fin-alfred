@@ -9,6 +9,7 @@
     "workspaces":  [
                        "packages/core",
                        "packages/provider-akshare",
+                       "packages/provider-llm",
                        "packages/gateway",
                        "packages/cli",
                        "packages/ui"
@@ -19,7 +20,8 @@
                     "test":  "vitest run",
                     "test:watch":  "vitest",
                     "alfred":  "node packages/cli/dist/main.js",
-                    "gateway":  "node packages/gateway/dist/server.js",
+                    "gateway":  "node packages/cli/dist/main.js gateway",
+                    "dashboard":  "node packages/cli/dist/main.js dashboard",
                     "migrate:export":  "node scripts/migrate-export.mjs"
                 },
     "devDependencies":  {

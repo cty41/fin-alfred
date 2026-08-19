@@ -1,7 +1,10 @@
 ﻿import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { Decimal, d, StagedStrategy, type StrategyStage, type MarketContext } from "@fin-alfred/core";
+import { Decimal, d, StagedStrategy, type StrategyStage, type MarketContext, runDcf, evaluate as evaluateAssessment, scoreTrack, qualityBand, htmlReport, sparkline, type ValueAssessment, type DcfInput } from "@fin-alfred/core";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { exec } from "node:child_process";
 import * as db from "./db.js";
 import { AkshareProvider } from "@fin-alfred/provider-akshare";
 
@@ -12,21 +15,31 @@ export interface CommandResult {
   table?: { headers: string[]; rows: string[][] };
 }
 
-const HELP_TEXT = `fin-alfred — 价值投资助手 (无 LLM 确定性内核)
+const HELP_TEXT = `fin-alfred — 确定性价值投资助手 (无 LLM 内核)
 
-可用命令:
-  guide                    首次使用引导
-  watchlist add <id> <symbol> <name>   添加自选
-  watchlist remove <id>    移除自选
-  watchlist list           查看自选列表
-  quote <id>               查看最新价格(缓存)
-  position <id>            持仓状态
-  trade log <id> sell <date> <qty> <price> [stamp] [clear] [transfer] [comm]
-                           记录真实成交(幂等)
-  strategy status <id>     策略状态评估
-  session list             会话列表
+数据管理:
+  watchlist add|remove|list          自选列表
+  quote <id> [--refresh]             价格 (AKShare)
+  position <id> / position set <id> <qty> <cash>
+  financials <id> show|add ...       年度财务数据
 
-输入 help <command> 查看具体用法。`;
+分析:
+  dcf <id>                           Bear/Base/Bull DCF 估值
+  summary <id>                       首屏摘要 (持仓+价格+策略状态)
+  screen lilu|burry                  选股评分模板 (李录/Burry)
+
+策略与交易:
+  strategy new <id> <baseline> --preset xiaomi | --file <json>
+  strategy status <id>               确定性策略评估
+  trade log <id> buy|sell <date> <qty> <price> [fees...]
+                                     记录真实成交 (幂等)
+
+报告与迁移:
+  report <id>|watchlist [--term]     生成 HTML 报告或终端输出
+  migrate import <export.json>       导入旧版数据
+  session list                       会话列表
+
+输入 help 显示本帮助。`;
 
 export function executeCommand(dbConn: DatabaseSync, input: string): CommandResult {
   const parts = input.trim().split(/\s+/);
@@ -213,6 +226,160 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
       return { ok: false, message: "用法: strategy status|new ..." };
     }
 
+    case "financials": {
+      const instrumentId = parts[1];
+      if (!instrumentId) return { ok: false, message: "用法: financials <id> show | financials <id> add <year> <currency> <revenue> <netIncome> <cash> <debt> <equity> <ocf> <capex> [sourceUrl]" };
+      const sub = parts[2]?.toLowerCase();
+      if (sub === "show") {
+        const fins = db.getFinancials(dbConn, instrumentId);
+        if (fins.length === 0) return { ok: true, message: `${instrumentId} 暂无财务数据。` };
+        return {
+          ok: true,
+          message: `${instrumentId} 年度财务数据 (${fins.length} 年):`,
+          table: {
+            headers: ["年份", "收入", "净利润", "现金", "负债", "OCF", "CapEx"],
+            rows: fins.map((f: any) => [f.year, f.revenue, f.net_income, f.cash, f.debt, f.operating_cash_flow, f.capex]),
+          },
+        };
+      }
+      if (sub === "add") {
+        const [year, currency, revenue, netIncome, cash, debt, equity, ocf, capex, sourceUrl] = parts.slice(3);
+        if (!year || !revenue) return { ok: false, message: "用法: financials <id> add <year> <currency> <revenue> <netIncome> <cash> <debt> <equity> <ocf> <capex> [sourceUrl]" };
+        db.upsertFinancials(dbConn, { instrumentId, year: Number(year), currency: currency ?? "HKD", revenue, netIncome: netIncome ?? "0", cash: cash ?? "0", debt: debt ?? "0", equity: equity ?? "0", operatingCashFlow: ocf ?? "0", capex: capex ?? "0", sourceUrl: sourceUrl ?? "" });
+        return { ok: true, message: `已录入 ${instrumentId} ${year} 年财务数据` };
+      }
+      return { ok: false, message: "用法: financials <id> show|add ..." };
+    }
+
+    case "dcf": {
+      const instrumentId = parts[1];
+      if (!instrumentId) return { ok: false, message: "用法: dcf <instrument_id>" };
+      const fins = db.getFinancials(dbConn, instrumentId);
+      if (fins.length === 0) return { ok: false, message: `${instrumentId} 无财务数据，请先用 financials <id> add 录入至少一年数据。` };
+      const latest = fins[0] as any;
+      const revenue = d(latest.revenue);
+      const netMargin = revenue.isZero() ? Decimal.zero() : d(latest.net_income).div(revenue);
+      const shares = d(latest.diluted_shares ?? "25000000000"); // default Xiaomi diluted shares
+      const input: DcfInput = {
+        instrumentId,
+        startingRevenue: revenue,
+        startingNetMargin: netMargin,
+        dilutedShares: shares,
+        forecastYears: 5,
+        bear: { revenueGrowth: d("-0.05"), endingNetMargin: netMargin.mul(d("0.7")), cashConversion: d("0.8"), discountRate: d("0.12"), exitPe: d("12") },
+        base: { revenueGrowth: d("0.08"), endingNetMargin: netMargin.mul(d("1.0")), cashConversion: d("0.9"), discountRate: d("0.10"), exitPe: d("18") },
+        bull: { revenueGrowth: d("0.15"), endingNetMargin: netMargin.mul(d("1.3")), cashConversion: d("1.0"), discountRate: d("0.09"), exitPe: d("25") },
+        asOf: new Date().toISOString().slice(0, 10),
+      };
+      const result = runDcf(input);
+      return {
+        ok: true,
+        message: `${instrumentId} DCF 估值 (5年 FCFE Proxy):\n  Bear: ${result.bear.valuePerShare.toFixed(2)}\n  Base: ${result.base.valuePerShare.toFixed(2)}\n  Bull: ${result.bull.valuePerShare.toFixed(2)}\n  终端价值占比(Base): ${(result.base.terminalValueShare.mul(d("100"))).toFixed(1)}%`,
+        data: { bear: result.bear.valuePerShare.toString(), base: result.base.valuePerShare.toString(), bull: result.bull.valuePerShare.toString() },
+      };
+    }
+
+    case "summary": {
+      const instrumentId = parts[1];
+      if (!instrumentId) return { ok: false, message: "用法: summary <instrument_id>" };
+      const pos = db.getOrCreatePosition(dbConn, "default", instrumentId);
+      const price = db.getLatestPrice(dbConn, instrumentId);
+      const strat = db.getActiveStrategy(dbConn, instrumentId);
+      const lines: string[] = [`${instrumentId} Summary`];
+      lines.push(`持仓: ${pos.quantity} 股 | 现金: ${pos.cash}`);
+      lines.push(price ? `最新价: ${price.price} (${price.observedAt})` : "最新价: 无缓存 (quote <id> --refresh)");
+      if (strat) {
+        const rawStages = JSON.parse(strat.stages_json) as any[];
+        const stages: StrategyStage[] = rawStages.map((s: any) => ({ ...s, cumulativeTarget: d(s.cumulativeTarget), zones: s.zones.map((z: any) => ({ low: d(z.low), high: d(z.high) })) }));
+        const strategy = new StagedStrategy(instrumentId, d(strat.baseline_quantity), stages);
+        const cumulativeSold = d(strat.baseline_quantity).sub(d(pos.quantity));
+        const market: MarketContext = { price: price ? d(price.price) : d("0"), dailyCloses: price ? [d(price.price)] : [], asOf: new Date().toISOString().slice(0, 10) };
+        const outcome = strategy.evaluate(market, cumulativeSold);
+        if (outcome.outcome === "propose_sell") {
+          lines.push(`策略: Stage ${outcome.stage} 可执行, 卖出 ${outcome.quantity.toString()} 股`);
+        } else if (outcome.outcome === "wait") {
+          lines.push(`策略: 等待 (${outcome.reasonCode})`);
+        } else if (outcome.outcome === "completed") {
+          lines.push("策略: 全部阶段已完成");
+        }
+      } else {
+        lines.push("策略: 未配置");
+      }
+      return { ok: true, message: lines.join("\n") };
+    }
+
+    case "screen": {
+      const method = parts[1]?.toLowerCase();
+      if (!method || !["lilu", "burry"].includes(method)) {
+        return { ok: false, message: "用法: screen lilu|burry [instrument_id]\n评分为手工录入，此命令展示评分模板。" };
+      }
+      const template = method === "lilu"
+        ? "李录选股清单 (权重):\n  护城河 moat: 25% (关键)\n  增量 ROIC: 25% (关键)\n  现金转化: 15%\n  管理层配置: 15% (关键)\n  资产负债表: 10% (关键)\n  成长空间: 10%"
+        : "Burry 选股清单 (权重):\n  估值折价: 25% (关键)\n  Bear 保护: 25% (关键)\n  资产负债表: 15% (关键)\n  正常化 FCF: 15% (关键)\n  预期差: 10%\n  催化剂: 10%";
+      return { ok: true, message: template };
+    }
+
+    case "report": {
+      const target = parts[1];
+      if (!target) return { ok: false, message: "用法: report <instrument_id>|watchlist [--term]" };
+      const termOnly = parts.includes("--term");
+      if (target === "watchlist") {
+        const items = db.watchlistList(dbConn);
+        const sections = items.map((item) => {
+          const pos = db.getOrCreatePosition(dbConn, "default", item.instrumentId);
+          const price = db.getLatestPrice(dbConn, item.instrumentId);
+          return {
+            heading: `${item.name} (${item.instrumentId})`,
+            text: `持仓: ${pos.quantity} 股\n现金: ${pos.cash}\n最新价: ${price?.price ?? "无"}`,
+          };
+        });
+        const html = htmlReport("fin-alfred Watchlist 报告", sections);
+        if (termOnly) {
+          return { ok: true, message: sections.map((s) => `${s.heading}\n${s.text}`).join("\n\n") };
+        }
+        const outDir = join(process.env.LOCALAPPDATA ?? ".", "fin-alfred", "reports");
+        mkdirSync(outDir, { recursive: true });
+        const outPath = join(outDir, `watchlist-${new Date().toISOString().slice(0, 10)}.html`);
+        writeFileSync(outPath, html, "utf-8");
+        exec(`start "" "${outPath}"`);
+        return { ok: true, message: `报告已生成并打开: ${outPath}` };
+      }
+      // Single instrument report
+      const instrumentId = target;
+      const pos = db.getOrCreatePosition(dbConn, "default", instrumentId);
+      const price = db.getLatestPrice(dbConn, instrumentId);
+      const strat = db.getActiveStrategy(dbConn, instrumentId);
+      const sections: import("@fin-alfred/core").ReportSection[] = [
+        { heading: "持仓", text: `数量: ${pos.quantity}\n现金: ${pos.cash}` },
+        { heading: "价格", text: price ? `${price.price} (${price.observedAt}, ${price.source})` : "无缓存" },
+      ];
+      if (strat) {
+        const rawStages = JSON.parse(strat.stages_json) as any[];
+        sections.push({
+          heading: "策略阶段",
+          table: {
+            headers: ["Stage", "累计目标", "执行区", "状态"],
+            rows: rawStages.map((s: any) => [
+              String(s.stage),
+              s.cumulativeTarget,
+              s.zones.map((z: any) => `${z.low}–${z.high}`).join(", "),
+              d(s.cumulativeTarget).lte(d(strat.baseline_quantity).sub(d(pos.quantity))) ? "已完成" : "待执行",
+            ]),
+          },
+        });
+      }
+      const html = htmlReport(`fin-alfred 报告: ${instrumentId}`, sections);
+      if (termOnly) {
+        return { ok: true, message: sections.map((s: any) => `${s.heading}: ${s.text ?? JSON.stringify(s.table)}`).join("\n") };
+      }
+      const outDir = join(process.env.LOCALAPPDATA ?? ".", "fin-alfred", "reports");
+      mkdirSync(outDir, { recursive: true });
+      const outPath = join(outDir, `${instrumentId.replace(/:/g, "-")}-${new Date().toISOString().slice(0, 10)}.html`);
+      writeFileSync(outPath, html, "utf-8");
+      exec(`start "" "${outPath}"`);
+      return { ok: true, message: `报告已生成并打开: ${outPath}` };
+    }
+
     case "migrate": {
       if (parts[1] === "import") {
         const filePath = parts[2];
@@ -289,6 +456,9 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
       };
   }
 }
+
+
+
 
 
 

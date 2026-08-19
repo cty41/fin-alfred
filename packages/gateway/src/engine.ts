@@ -408,7 +408,7 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
           }
           for (const profile of data.profiles ?? []) {
             const iid = profile.instrumentId;
-            db.watchlistAdd(dbConn, iid, profile.symbol, profile.name, profile.currency ?? "HKD");
+            db.watchlistUpsert(dbConn, iid, profile.symbol, profile.name, profile.currency ?? "HKD");
             db.getOrCreatePosition(dbConn, "default", iid, profile.position.quantity, profile.position.cash);
             for (const exec of profile.executions ?? []) {
               const result = db.recordExecution(dbConn, "default", iid, exec.side, exec.tradedAt, exec.quantity, exec.price, exec.fees, exec.externalId ?? null);
@@ -468,6 +468,7 @@ export function executeCommand(dbConn: DatabaseSync, input: string): CommandResu
       };
   }
 }
+
 
 
 

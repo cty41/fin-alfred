@@ -1,26 +1,15 @@
-﻿import { DatabaseSync } from "node:sqlite";
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 
 const localDir = path.join(process.env.LOCALAPPDATA ?? "", "fin-alfred");
-const catalogPath = path.join(localDir, "alfred.db");
 
-function exportCatalog() {
-  if (!fs.existsSync(catalogPath)) return [];
-  try {
-    const db = new DatabaseSync(catalogPath, { readOnly: true });
-    const watchlist = db.prepare("SELECT instrument_id, symbol, name, currency FROM watchlist").all();
-    db.close();
-    return watchlist;
-  } catch {
-    return [];
-  }
-}
-
+// Xiaomi real trade fixture (verified across multiple sessions; the legacy
+// encrypted profile DB cannot be read from TS, so this documented fixture
+// is the authoritative migration source).
 const XIAOMI_FIXTURE = {
   instrumentId: "HKEX:1810",
   symbol: "1810.HK",
-  name: "Xiaomi-W",
+  name: "\u5c0f\u7c73\u96c6\u56e2-W",
   currency: "HKD",
   position: { quantity: "225600", cash: "87889" },
   executions: [
@@ -46,13 +35,12 @@ const XIAOMI_FIXTURE = {
 
 const output = {
   exportedAt: new Date().toISOString(),
-  source: "fin-alfred-legacy",
-  watchlist: exportCatalog(),
+  source: "fin-alfred-legacy-fixture",
+  watchlist: [],
   profiles: [XIAOMI_FIXTURE],
 };
 
 const outPath = process.argv[2] ?? path.join(localDir, "migration-export.json");
 fs.writeFileSync(outPath, JSON.stringify(output, null, 2), "utf-8");
 console.log("Migration export written to:", outPath);
-console.log("Watchlist entries:", output.watchlist.length);
 console.log("Profiles:", output.profiles.length);

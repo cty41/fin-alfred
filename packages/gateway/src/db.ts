@@ -152,6 +152,12 @@ export function watchlistAdd(db: DatabaseSync, instrumentId: string, symbol: str
     .run(instrumentId, symbol, name, currency);
 }
 
+export function watchlistUpsert(db: DatabaseSync, instrumentId: string, symbol: string, name: string, currency = "HKD"): void {
+  db.prepare(`INSERT INTO watchlist (instrument_id, symbol, name, currency) VALUES (?, ?, ?, ?)
+    ON CONFLICT(instrument_id) DO UPDATE SET symbol = excluded.symbol, name = excluded.name, currency = excluded.currency`)
+    .run(instrumentId, symbol, name, currency);
+}
+
 export function watchlistRemove(db: DatabaseSync, instrumentId: string): void {
   db.prepare("DELETE FROM watchlist WHERE instrument_id = ?").run(instrumentId);
 }
@@ -261,4 +267,5 @@ export function upsertFinancials(db: DatabaseSync, fin: { instrumentId: string; 
 export function getFinancials(db: DatabaseSync, instrumentId: string): any[] {
   return db.prepare("SELECT * FROM financials WHERE instrument_id = ? ORDER BY year DESC").all(instrumentId);
 }
+
 

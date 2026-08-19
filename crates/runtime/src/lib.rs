@@ -8,9 +8,9 @@ use fin_alfred_application::{
 use fin_alfred_domain::{
     calculate_dcf, calculate_relative, expected_annualized_return, AgentPermission, AgentPolicy,
     AnnualFinancials, CashDeploymentGuard, Confidence, DataOrigin, DcfInput, DcfResult,
-    DecisionSnapshot, EvidenceScore, Execution, FeeBreakdown, FundamentalSnapshot,
-    InstrumentProfile, MarketQuoteSnapshot, MultipleSeries, PriceSnapshot, Recommendation,
-    RelativeInput, RelativeResult, ReverseDcfSnapshot, Side, SotpValuation,
+    DcfScenarioInput, DecisionSnapshot, EvidenceScore, Execution, FeeBreakdown,
+    FundamentalSnapshot, InstrumentProfile, MarketQuoteSnapshot, MultipleSeries, PriceSnapshot,
+    Recommendation, RelativeInput, RelativeResult, ReverseDcfSnapshot, Side, SotpValuation,
     StagedPositionTransition, StrategyDraft, StrategyOutcome, XiaomiSignals, XiaomiValueAssessment,
 };
 use fin_alfred_persistence::{EncryptedDatabase, LedgerSnapshot, ProfileCatalog, SCHEMA_VERSION};
@@ -1268,7 +1268,20 @@ struct PrototypeWorkspace {
     #[serde(default)]
     relative_models: Vec<RelativeResult>,
     #[serde(default)]
+    valuation_history: Vec<ValuationHistorySnapshot>,
+    #[serde(default)]
     external_snapshots: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValuationHistorySnapshot {
+    as_of: String,
+    report_period: String,
+    market_price: String,
+    dcf: DcfResult,
+    source_url: String,
+    created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1310,20 +1323,225 @@ fn default_workspace(profile_id: &str) -> PrototypeWorkspace {
     if profile_id != "profile-xiaomi-real" {
         return PrototypeWorkspace::default();
     }
+    let instrument_id = "HKEX:1810";
+    let annual_reports = "https://ir.mi.com/financial-information/annual-interim-reports";
+    let starter_updated_at = "2026-08-18T00:00:00Z";
+    let dcf_input = DcfInput {
+        instrument_id: instrument_id.into(),
+        starting_revenue: "365906".into(),
+        starting_net_margin: "0.0644".into(),
+        diluted_shares: "25000".into(),
+        forecast_years: 5,
+        bear: DcfScenarioInput {
+            revenue_growth: "0.04".into(),
+            ending_net_margin: "0.06".into(),
+            cash_conversion: "0.85".into(),
+            discount_rate: "0.11".into(),
+            exit_pe: "12".into(),
+        },
+        base: DcfScenarioInput {
+            revenue_growth: "0.09".into(),
+            ending_net_margin: "0.082".into(),
+            cash_conversion: "0.95".into(),
+            discount_rate: "0.09".into(),
+            exit_pe: "17".into(),
+        },
+        bull: DcfScenarioInput {
+            revenue_growth: "0.14".into(),
+            ending_net_margin: "0.10".into(),
+            cash_conversion: "1".into(),
+            discount_rate: "0.08".into(),
+            exit_pe: "22".into(),
+        },
+        as_of: "2026-08-18".into(),
+    };
+    let relative_input = RelativeInput {
+        instrument_id: instrument_id.into(),
+        normalized_eps: "1.65".into(),
+        normalized_ocf_per_share: "1.5".into(),
+        pe: MultipleSeries {
+            current: Some("18.2".into()),
+            three_year_median: Some("22".into()),
+            five_year_median: Some("20".into()),
+            peer_median: Some("24".into()),
+            valid_observations: 520,
+            percentile_10: Some("13".into()),
+            percentile_90: Some("31".into()),
+        },
+        pcf: MultipleSeries {
+            current: Some("15.1".into()),
+            three_year_median: Some("25".into()),
+            five_year_median: Some("23".into()),
+            peer_median: Some("27".into()),
+            valid_observations: 510,
+            percentile_10: Some("12".into()),
+            percentile_90: Some("34".into()),
+        },
+        peers: vec![],
+        source: "Built-in research starter; refresh before relying on market multiples".into(),
+        fetched_at: Some(starter_updated_at.into()),
+        as_of: "2026-08-18".into(),
+    };
+    let valuation_history = [
+        (
+            "2020-12-31",
+            "2020-12-31",
+            "31.90",
+            "245866",
+            "0.0828",
+            "25000",
+            "0.06",
+            "0.085",
+            "16",
+        ),
+        (
+            "2021-12-31",
+            "2021-12-31",
+            "18.60",
+            "328309",
+            "0.0587",
+            "25000",
+            "0.07",
+            "0.09",
+            "16",
+        ),
+        (
+            "2022-12-30",
+            "2022-12-31",
+            "10.90",
+            "280044",
+            "0.0089",
+            "25000",
+            "0.04",
+            "0.10",
+            "14",
+        ),
+        (
+            "2023-12-29",
+            "2023-12-31",
+            "16.70",
+            "270970",
+            "0.0711",
+            "25000",
+            "0.07",
+            "0.09",
+            "17",
+        ),
+        (
+            "2024-12-31",
+            "2024-12-31",
+            "34.20",
+            "365906",
+            "0.0644",
+            "25000",
+            "0.09",
+            "0.09",
+            "17",
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(
+            as_of,
+            report_period,
+            market_price,
+            revenue,
+            margin,
+            shares,
+            growth,
+            discount,
+            exit_pe,
+        )| {
+            let dcf = calculate_dcf(DcfInput {
+                instrument_id: instrument_id.into(),
+                starting_revenue: revenue.into(),
+                starting_net_margin: margin.into(),
+                diluted_shares: shares.into(),
+                forecast_years: 5,
+                bear: DcfScenarioInput {
+                    revenue_growth: "0.03".into(),
+                    ending_net_margin: "0.05".into(),
+                    cash_conversion: "0.85".into(),
+                    discount_rate: "0.11".into(),
+                    exit_pe: "12".into(),
+                },
+                base: DcfScenarioInput {
+                    revenue_growth: growth.into(),
+                    ending_net_margin: "0.082".into(),
+                    cash_conversion: "0.95".into(),
+                    discount_rate: discount.into(),
+                    exit_pe: exit_pe.into(),
+                },
+                bull: DcfScenarioInput {
+                    revenue_growth: "0.12".into(),
+                    ending_net_margin: "0.10".into(),
+                    cash_conversion: "1".into(),
+                    discount_rate: "0.08".into(),
+                    exit_pe: "22".into(),
+                },
+                as_of: as_of.into(),
+            })
+            .expect("Xiaomi historical DCF is valid");
+            ValuationHistorySnapshot {
+                as_of: as_of.into(),
+                report_period: report_period.into(),
+                market_price: market_price.into(),
+                dcf,
+                source_url: annual_reports.into(),
+                created_at: starter_updated_at.into(),
+            }
+        },
+    )
+    .collect();
     PrototypeWorkspace {
         instruments: vec![InstrumentProfile {
-            instrument_id: "HKEX:1810".into(),
+            instrument_id: instrument_id.into(),
             symbol: "01810".into(),
             name: "小米集团-W".into(),
             currency: "HKD".into(),
             announcement_url: "https://www1.hkexnews.hk/search/titlesearch.xhtml?category=0&lang=ZH&market=SEHK&stockId=1000195151".into(),
             investor_relations_url: "https://ir.mi.com/".into(),
-            buy_price: None,
-            price_snapshots: vec![],
+            buy_price: Some("25.62".into()),
+            price_snapshots: vec![PriceSnapshot {
+                price: "25.40".into(),
+                previous_close: Some("25.88".into()),
+                observed_at: starter_updated_at.into(),
+                source: "Built-in research starter; refresh prices".into(),
+            }],
             manual_price_override: None,
         }],
-        watchlist: vec!["HKEX:1810".into()],
-        ..PrototypeWorkspace::default()
+        watchlist: vec![instrument_id.into()],
+        financials: [
+            (2020, "245866", "20356", "26165", "16621", "68801", "32140", "7274"),
+            (2021, "328309", "19283", "37063", "26857", "94405", "32129", "8311"),
+            (2022, "280044", "2503", "27720", "30176", "91410", "22215", "7860"),
+            (2023, "270970", "19273", "33630", "39756", "111810", "41373", "8600"),
+            (2024, "365906", "23578", "33744", "45603", "128950", "45013", "10500"),
+        ]
+        .into_iter()
+        .map(|(year, revenue, net_income, cash, debt, equity, operating_cash_flow, capex)| {
+            AnnualFinancials {
+                instrument_id: instrument_id.into(),
+                year,
+                currency: "HKD million".into(),
+                revenue: revenue.into(),
+                net_income: net_income.into(),
+                cash: cash.into(),
+                debt: debt.into(),
+                equity: equity.into(),
+                operating_cash_flow: operating_cash_flow.into(),
+                capex: capex.into(),
+                source_url: annual_reports.into(),
+                updated_at: starter_updated_at.into(),
+            }
+        })
+        .collect(),
+        dcf_models: vec![calculate_dcf(dcf_input).expect("Xiaomi starter DCF is valid")],
+        relative_models: vec![
+            calculate_relative(relative_input).expect("Xiaomi starter relative model is valid"),
+        ],
+        valuation_history,
+        external_snapshots: vec![],
     }
 }
 
@@ -1495,6 +1713,7 @@ fn get_instrument_summary(state: &AppState, input: ProfileInstrumentArgs) -> Res
         "financials": financials,
         "dcf": dcf,
         "relative": relative,
+        "valuationHistory": workspace.valuation_history.iter().filter(|item| item.dcf.input.instrument_id == input.instrument_id).collect::<Vec<_>>(),
         "ledger": ledger,
         "stageOneCompleted": input.profile_id == "profile-xiaomi-real" && input.instrument_id == "HKEX:1810"
     }))
@@ -1545,6 +1764,26 @@ fn save_dcf(state: &AppState, input: SaveDcfArgs) -> Result<Value, String> {
         .any(|item| item.content_hash == result.content_hash);
     if inserted {
         workspace.dcf_models.push(result.clone());
+        if let Some(price) = workspace
+            .instruments
+            .iter()
+            .find(|item| item.instrument_id == result.input.instrument_id)
+            .and_then(instrument_price)
+        {
+            let exists = workspace.valuation_history.iter().any(|item| {
+                item.dcf.content_hash == result.content_hash && item.as_of == result.input.as_of
+            });
+            if !exists {
+                workspace.valuation_history.push(ValuationHistorySnapshot {
+                    as_of: result.input.as_of.clone(),
+                    report_period: result.input.as_of.clone(),
+                    market_price: price.price.clone(),
+                    dcf: result.clone(),
+                    source_url: "User saved DCF model".into(),
+                    created_at: Utc::now().to_rfc3339(),
+                });
+            }
+        }
         store_workspace(&database, &workspace)?;
     }
     Ok(json!({"inserted": inserted, "result": result}))
@@ -2425,6 +2664,20 @@ fn initialize_xiaomi_profile(database: &EncryptedDatabase) -> anyhow::Result<()>
             external_id: Some("user-confirmed-20260814-12000-25.62".into()),
         },
     )?;
+    match database.get_setting::<PrototypeWorkspace>(PROTOTYPE_WORKSPACE_KEY)? {
+        None => database.put_setting(
+            PROTOTYPE_WORKSPACE_KEY,
+            &default_workspace("profile-xiaomi-real"),
+        )?,
+        Some(mut workspace) if workspace.valuation_history.is_empty() => {
+            // This is an additive starter-data migration. It deliberately leaves the
+            // user's instruments, financials, current DCF, prices, and ledger intact.
+            workspace.valuation_history =
+                default_workspace("profile-xiaomi-real").valuation_history;
+            database.put_setting(PROTOTYPE_WORKSPACE_KEY, &workspace)?;
+        }
+        Some(_) => {}
+    }
     Ok(())
 }
 
@@ -2514,6 +2767,60 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot.quantity, decimal("213600").unwrap());
         assert_eq!(snapshot.cash, decimal("395000").unwrap());
+        let workspace = database
+            .get_setting::<PrototypeWorkspace>(PROTOTYPE_WORKSPACE_KEY)
+            .unwrap()
+            .unwrap();
+        assert_eq!(workspace.watchlist, vec!["HKEX:1810"]);
+        assert_eq!(workspace.instruments[0].price_snapshots.len(), 1);
+        assert_eq!(workspace.financials.len(), 5);
+        assert_eq!(workspace.dcf_models.len(), 1);
+        assert_eq!(workspace.relative_models.len(), 1);
+        assert_eq!(workspace.valuation_history.len(), 5);
+    }
+
+    #[test]
+    fn xiaomi_starter_workspace_never_overwrites_saved_research() {
+        let database = EncryptedDatabase::open_in_memory().unwrap();
+        let saved = PrototypeWorkspace {
+            instruments: vec![InstrumentProfile {
+                instrument_id: "HKEX:1810".into(),
+                symbol: "01810".into(),
+                name: "我的小米研究".into(),
+                currency: "HKD".into(),
+                announcement_url: String::new(),
+                investor_relations_url: String::new(),
+                buy_price: None,
+                price_snapshots: vec![],
+                manual_price_override: None,
+            }],
+            watchlist: vec!["HKEX:1810".into()],
+            ..PrototypeWorkspace::default()
+        };
+        database
+            .put_setting(PROTOTYPE_WORKSPACE_KEY, &saved)
+            .unwrap();
+
+        initialize_xiaomi_profile(&database).unwrap();
+
+        let stored = database
+            .get_setting::<PrototypeWorkspace>(PROTOTYPE_WORKSPACE_KEY)
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.instruments[0].name, "我的小米研究");
+        assert!(stored.financials.is_empty());
+        assert!(stored.dcf_models.is_empty());
+        assert!(stored.relative_models.is_empty());
+        assert_eq!(stored.valuation_history.len(), 5);
+        assert_eq!(
+            stored.valuation_history[0].source_url,
+            "https://ir.mi.com/financial-information/annual-interim-reports"
+        );
+        let ledger = database
+            .ledger_snapshot("profile-xiaomi-real", "HKEX:1810", "HKD")
+            .unwrap();
+        assert_eq!(ledger.quantity, decimal("213600").unwrap());
+        assert_eq!(ledger.cash, decimal("395000").unwrap());
     }
 
     #[test]

@@ -1,107 +1,2245 @@
-import { ArrowLeft, Copy, Download, ExternalLink, Plus, RefreshCw, Settings, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  ExternalLink,
+  Plus,
+  RefreshCw,
+  Settings,
+  Trash2,
+  X,
+} from "lucide-react";
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { appBridge } from "../bridge";
-import type { AnnualFinancials, DcfInput, DcfResult, DcfScenarioInput, DiagnosticEvent, DiagnosticLevel, InstrumentProfile, InstrumentSummary, RelativeInput, RelativeResult, WatchlistRow } from "../domain/types";
+import type {
+  AnnualFinancials,
+  DcfInput,
+  DcfResult,
+  DcfScenarioInput,
+  DiagnosticEvent,
+  DiagnosticLevel,
+  InstrumentProfile,
+  InstrumentSummary,
+  RelativeInput,
+  RelativeResult,
+  WatchlistRow,
+} from "../domain/types";
 
-const hkd = (value?: string | null) => value && Number.isFinite(Number(value)) ? `HK$${Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}` : "—";
-const pct = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(1)}%` : "—";
+const hkd = (value?: string | null) =>
+  value && Number.isFinite(Number(value))
+    ? `HK$${Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`
+    : "—";
+const pct = (value: number) =>
+  Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(1)}%` : "—";
 const today = () => new Date().toISOString().slice(0, 10);
-const emptySeries = () => ({ current: null, threeYearMedian: null, fiveYearMedian: null, peerMedian: null, validObservations: 0, percentile10: null, percentile90: null });
+const emptySeries = () => ({
+  current: null,
+  threeYearMedian: null,
+  fiveYearMedian: null,
+  peerMedian: null,
+  validObservations: 0,
+  percentile10: null,
+  percentile90: null,
+});
 
 export function PrototypeApp() {
-  const [profiles, setProfiles] = useState<Array<{ id: string; name: string }>>([]);
+  const [profiles, setProfiles] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
   const [profileId, setProfileId] = useState("profile-xiaomi-real");
   const [selected, setSelected] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => { void appBridge.listProfiles().then((items) => { setProfiles(items); setProfileId((current) => items.length && !items.some((item) => item.id === current) ? items[0].id : current); }); }, []);
-  if (!profiles.length) return <main className="loading">正在打开 fin-alfred…</main>;
-  return <div className="prototype-shell"><header className="global-header"><button className="brand-button" onClick={() => setSelected(undefined)}><span>FA</span><strong>fin-alfred</strong></button><div className="header-actions"><label className="profile-select"><small>投资档案</small><select value={profileId} onChange={(event) => { setProfileId(event.target.value); setSelected(undefined); }}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label><button className="icon-button" aria-label="设置" onClick={() => setSettingsOpen(true)}><Settings /></button></div></header>{selected ? <InstrumentWorkspace profileId={profileId} instrumentId={selected} onBack={() => setSelected(undefined)} /> : <WatchlistPage profileId={profileId} onOpen={setSelected} />}{settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}</div>;
+  useEffect(() => {
+    void appBridge.listProfiles().then((items) => {
+      setProfiles(items);
+      setProfileId((current) =>
+        items.length && !items.some((item) => item.id === current)
+          ? items[0].id
+          : current,
+      );
+    });
+  }, []);
+  if (!profiles.length)
+    return <main className="loading">正在打开 fin-alfred…</main>;
+  return (
+    <div className="prototype-shell">
+      <header className="global-header">
+        <button className="brand-button" onClick={() => setSelected(undefined)}>
+          <span>FA</span>
+          <strong>fin-alfred</strong>
+        </button>
+        <div className="header-actions">
+          <label className="profile-select">
+            <small>投资档案</small>
+            <select
+              value={profileId}
+              onChange={(event) => {
+                setProfileId(event.target.value);
+                setSelected(undefined);
+              }}
+            >
+              {profiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="icon-button"
+            aria-label="设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings />
+          </button>
+        </div>
+      </header>
+      {selected ? (
+        <InstrumentWorkspace
+          profileId={profileId}
+          instrumentId={selected}
+          onBack={() => setSelected(undefined)}
+        />
+      ) : (
+        <WatchlistPage profileId={profileId} onOpen={setSelected} />
+      )}
+      {settingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
+    </div>
+  );
 }
 
-function SettingsDialog({onClose}:{onClose:()=>void}) {
+function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [diagnostics, setDiagnostics] = useState(false);
-  return <Modal wide={diagnostics} title={diagnostics ? "开发诊断" : "设置"} onClose={onClose}>{diagnostics ? <DiagnosticPanel onBack={() => setDiagnostics(false)} /> : <div className="settings-minimal"><p>本地运行模式</p><strong>{appBridge.mode === "http" ? "加密 Gateway" : "浏览器演示数据"}</strong><small>AI、MCP、交易和策略功能在此原型中已隐藏。</small><button className="outline diagnostics-entry" onClick={() => setDiagnostics(true)}>打开开发诊断</button></div>}</Modal>;
+  return (
+    <Modal
+      wide={diagnostics}
+      title={diagnostics ? "开发诊断" : "设置"}
+      onClose={onClose}
+    >
+      {diagnostics ? (
+        <DiagnosticPanel onBack={() => setDiagnostics(false)} />
+      ) : (
+        <div className="settings-minimal">
+          <p>本地运行模式</p>
+          <strong>
+            {appBridge.mode === "http" ? "加密 Gateway" : "浏览器演示数据"}
+          </strong>
+          <small>AI、MCP、交易和策略功能在此原型中已隐藏。</small>
+          <button
+            className="outline diagnostics-entry"
+            onClick={() => setDiagnostics(true)}
+          >
+            打开开发诊断
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
 }
 
-function DiagnosticPanel({onBack}:{onBack:()=>void}) {
-  const [levels, setLevels] = useState<DiagnosticLevel[]>([]), [component, setComponent] = useState(""), [query, setQuery] = useState(""), [since, setSince] = useState("");
-  const [events, setEvents] = useState<DiagnosticEvent[]>([]), [components, setComponents] = useState<string[]>([]), [summary, setSummary] = useState<{status:string;version:string;uptimeSeconds:number;lastError?:DiagnosticEvent|null}>({status:"loading",version:"—",uptimeSeconds:0});
-  const [cursor, setCursor] = useState<number|null>(), [selected, setSelected] = useState<DiagnosticEvent>(), [error, setError] = useState("");
-  const load = useCallback(async (append = false, pageCursor?:number) => { try { const page = await appBridge.listDiagnostics({ levels, components: component ? [component] : [], query, since: since ? new Date(since).toISOString() : undefined, cursor: append ? pageCursor : undefined, limit: 200 }); setEvents((current) => append ? [...current, ...page.events.filter((event) => !current.some((item) => item.id === event.id))] : page.events); setCursor(page.nextCursor); setComponents(page.components); setSummary(page.summary); setError(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "读取诊断日志失败"); } }, [levels, component, query, since]);
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 3_000); return () => window.clearInterval(timer); }, [load]);
-  async function exportBundle() { try { const blob = await appBridge.exportDiagnosticBundle(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `fin-alfred-diagnostics-${new Date().toISOString().slice(0,10)}.zip`; link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 1_000); } catch (reason) { setError(reason instanceof Error ? reason.message : "导出失败"); } }
-  const toggleLevel = (level:DiagnosticLevel) => setLevels((current) => current.includes(level) ? current.filter((item) => item !== level) : [...current, level]);
-  return <div className="diagnostics-panel"><div className="diagnostics-actions"><button onClick={onBack}><ArrowLeft/>返回设置</button><div><button onClick={() => void load()}><RefreshCw/>刷新</button><button className="primary" onClick={() => void exportBundle()}><Download/>导出诊断包</button></div></div><div className="diagnostic-summary"><div><small>Gateway</small><strong className="positive">{summary.status}</strong></div><div><small>版本</small><strong>{summary.version}</strong></div><div><small>运行时间</small><strong>{Math.floor(summary.uptimeSeconds/60)} 分钟</strong></div><div><small>最近错误</small><strong>{summary.lastError?.operation ?? "无"}</strong></div></div><div className="diagnostic-filters"><div className="level-filter">{(["DEBUG","INFO","WARN","ERROR"] as DiagnosticLevel[]).map((level)=><button key={level} className={levels.includes(level)?"active":""} onClick={()=>toggleLevel(level)}>{level}</button>)}</div><select aria-label="组件" value={component} onChange={(event)=>setComponent(event.target.value)}><option value="">全部组件</option>{components.map((item)=><option key={item}>{item}</option>)}</select><input aria-label="搜索日志" value={query} placeholder="搜索操作或消息" onChange={(event)=>setQuery(event.target.value)}/><input aria-label="开始时间" type="datetime-local" value={since} onChange={(event)=>setSince(event.target.value)}/></div>{error&&<div className="notice">{error}</div>}<div className="diagnostic-table-wrap"><table className="diagnostic-table"><thead><tr><th>时间</th><th>级别</th><th>组件</th><th>操作</th><th>消息</th><th>耗时</th><th>关联 ID</th></tr></thead><tbody>{events.map((event)=><tr key={event.id} onClick={()=>setSelected(event)}><td>{new Date(event.timestamp).toLocaleString("zh-CN")}</td><td><span className={`log-level ${event.level.toLowerCase()}`}>{event.level}</span></td><td>{event.component}</td><td>{event.operation}</td><td>{event.message}</td><td>{event.durationMs == null?"—":`${event.durationMs} ms`}</td><td><code>{event.correlationId.slice(0,12)}</code></td></tr>)}{!events.length&&<tr><td colSpan={7} className="empty-cell">没有符合筛选条件的日志</td></tr>}</tbody></table></div>{cursor!=null&&<button className="load-more" onClick={()=>void load(true,cursor)}>加载更早日志</button>}{selected&&<div className="diagnostic-detail"><header><strong>结构化详情</strong><button aria-label="关闭日志详情" onClick={()=>setSelected(undefined)}><X/></button></header><pre>{JSON.stringify(selected,null,2)}</pre><div><button onClick={()=>void navigator.clipboard.writeText(JSON.stringify(selected,null,2))}><Copy/>复制单条</button><button onClick={()=>void navigator.clipboard.writeText(selected.correlationId)}><Copy/>复制关联 ID</button></div></div>}</div>;
+function DiagnosticPanel({ onBack }: { onBack: () => void }) {
+  const [levels, setLevels] = useState<DiagnosticLevel[]>([]),
+    [component, setComponent] = useState(""),
+    [query, setQuery] = useState(""),
+    [since, setSince] = useState("");
+  const [events, setEvents] = useState<DiagnosticEvent[]>([]),
+    [components, setComponents] = useState<string[]>([]),
+    [summary, setSummary] = useState<{
+      status: string;
+      version: string;
+      uptimeSeconds: number;
+      lastError?: DiagnosticEvent | null;
+    }>({ status: "loading", version: "—", uptimeSeconds: 0 });
+  const [cursor, setCursor] = useState<number | null>(),
+    [selected, setSelected] = useState<DiagnosticEvent>(),
+    [error, setError] = useState("");
+  const load = useCallback(
+    async (append = false, pageCursor?: number) => {
+      try {
+        const page = await appBridge.listDiagnostics({
+          levels,
+          components: component ? [component] : [],
+          query,
+          since: since ? new Date(since).toISOString() : undefined,
+          cursor: append ? pageCursor : undefined,
+          limit: 200,
+        });
+        setEvents((current) =>
+          append
+            ? [
+                ...current,
+                ...page.events.filter(
+                  (event) => !current.some((item) => item.id === event.id),
+                ),
+              ]
+            : page.events,
+        );
+        setCursor(page.nextCursor);
+        setComponents(page.components);
+        setSummary(page.summary);
+        setError("");
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "读取诊断日志失败");
+      }
+    },
+    [levels, component, query, since],
+  );
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 3_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+  async function exportBundle() {
+    try {
+      const blob = await appBridge.exportDiagnosticBundle();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `fin-alfred-diagnostics-${new Date().toISOString().slice(0, 10)}.zip`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 1_000);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "导出失败");
+    }
+  }
+  const toggleLevel = (level: DiagnosticLevel) =>
+    setLevels((current) =>
+      current.includes(level)
+        ? current.filter((item) => item !== level)
+        : [...current, level],
+    );
+  return (
+    <div className="diagnostics-panel">
+      <div className="diagnostics-actions">
+        <button onClick={onBack}>
+          <ArrowLeft />
+          返回设置
+        </button>
+        <div>
+          <button onClick={() => void load()}>
+            <RefreshCw />
+            刷新
+          </button>
+          <button className="primary" onClick={() => void exportBundle()}>
+            <Download />
+            导出诊断包
+          </button>
+        </div>
+      </div>
+      <div className="diagnostic-summary">
+        <div>
+          <small>Gateway</small>
+          <strong className="positive">{summary.status}</strong>
+        </div>
+        <div>
+          <small>版本</small>
+          <strong>{summary.version}</strong>
+        </div>
+        <div>
+          <small>运行时间</small>
+          <strong>{Math.floor(summary.uptimeSeconds / 60)} 分钟</strong>
+        </div>
+        <div>
+          <small>最近错误</small>
+          <strong>{summary.lastError?.operation ?? "无"}</strong>
+        </div>
+      </div>
+      <div className="diagnostic-filters">
+        <div className="level-filter">
+          {(["DEBUG", "INFO", "WARN", "ERROR"] as DiagnosticLevel[]).map(
+            (level) => (
+              <button
+                key={level}
+                className={levels.includes(level) ? "active" : ""}
+                onClick={() => toggleLevel(level)}
+              >
+                {level}
+              </button>
+            ),
+          )}
+        </div>
+        <select
+          aria-label="组件"
+          value={component}
+          onChange={(event) => setComponent(event.target.value)}
+        >
+          <option value="">全部组件</option>
+          {components.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
+        </select>
+        <input
+          aria-label="搜索日志"
+          value={query}
+          placeholder="搜索操作或消息"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <input
+          aria-label="开始时间"
+          type="datetime-local"
+          value={since}
+          onChange={(event) => setSince(event.target.value)}
+        />
+      </div>
+      {error && <div className="notice">{error}</div>}
+      <div className="diagnostic-table-wrap">
+        <table className="diagnostic-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>级别</th>
+              <th>组件</th>
+              <th>操作</th>
+              <th>消息</th>
+              <th>耗时</th>
+              <th>关联 ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => (
+              <tr key={event.id} onClick={() => setSelected(event)}>
+                <td>{new Date(event.timestamp).toLocaleString("zh-CN")}</td>
+                <td>
+                  <span className={`log-level ${event.level.toLowerCase()}`}>
+                    {event.level}
+                  </span>
+                </td>
+                <td>{event.component}</td>
+                <td>{event.operation}</td>
+                <td>{event.message}</td>
+                <td>
+                  {event.durationMs == null ? "—" : `${event.durationMs} ms`}
+                </td>
+                <td>
+                  <code>{event.correlationId.slice(0, 12)}</code>
+                </td>
+              </tr>
+            ))}
+            {!events.length && (
+              <tr>
+                <td colSpan={7} className="empty-cell">
+                  没有符合筛选条件的日志
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {cursor != null && (
+        <button className="load-more" onClick={() => void load(true, cursor)}>
+          加载更早日志
+        </button>
+      )}
+      {selected && (
+        <div className="diagnostic-detail">
+          <header>
+            <strong>结构化详情</strong>
+            <button
+              aria-label="关闭日志详情"
+              onClick={() => setSelected(undefined)}
+            >
+              <X />
+            </button>
+          </header>
+          <pre>{JSON.stringify(selected, null, 2)}</pre>
+          <div>
+            <button
+              onClick={() =>
+                void navigator.clipboard.writeText(
+                  JSON.stringify(selected, null, 2),
+                )
+              }
+            >
+              <Copy />
+              复制单条
+            </button>
+            <button
+              onClick={() =>
+                void navigator.clipboard.writeText(selected.correlationId)
+              }
+            >
+              <Copy />
+              复制关联 ID
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
-function WatchlistPage({ profileId, onOpen }: { profileId: string; onOpen: (id: string) => void }) {
-  const [rows, setRows] = useState<WatchlistRow[]>([]); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [adding, setAdding] = useState(false);
-  const load = useCallback(async () => setRows(await appBridge.listWatchlist(profileId)), [profileId]);
-  useEffect(() => { void load(); }, [load]);
-  async function refresh() { setBusy(true); setMessage(""); try { const result = await appBridge.refreshWatchlistPrices(profileId); await load(); setMessage(`已更新 ${result.updated} 个价格数据点`); } catch (error) { setMessage(error instanceof Error ? error.message : "行情刷新失败，已保留缓存"); } finally { setBusy(false); } }
-  return <main className="page watchlist-page"><div className="page-heading"><div><p className="eyebrow">PORTFOLIO RESEARCH</p><h1>Watchlist</h1><p>从关注列表进入公司的财务与估值分析。</p></div><div className="heading-actions"><button onClick={() => setAdding(true)}><Plus /> 添加公司</button><button className="primary" disabled={busy || !rows.length} onClick={() => void refresh()}><RefreshCw className={busy ? "spin" : ""} /> Refresh Prices</button></div></div>{message && <div className="notice">{message}</div>}<div className="watch-table-wrap"><table className="watch-table"><thead><tr><th>Company</th><th>Price Graph</th><th>Last Price</th><th>Buy Price</th><th>Intrinsic Value</th><th>Relative Value</th><th aria-label="Remove" /></tr></thead><tbody>{rows.map((row) => <WatchRow key={row.instrument.instrumentId} profileId={profileId} row={row} onOpen={onOpen} onChanged={load} />)}{!rows.length && <tr><td colSpan={7} className="empty-cell">Watchlist 为空，添加第一家公司开始研究。</td></tr>}</tbody></table></div>{adding && <InstrumentForm profileId={profileId} onClose={() => setAdding(false)} onSaved={async (instrument) => { setAdding(false); await load(); onOpen(instrument.instrumentId); }} />}</main>;
+function WatchlistPage({
+  profileId,
+  onOpen,
+}: {
+  profileId: string;
+  onOpen: (id: string) => void;
+}) {
+  const [rows, setRows] = useState<WatchlistRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [adding, setAdding] = useState(false);
+  const load = useCallback(
+    async () => setRows(await appBridge.listWatchlist(profileId)),
+    [profileId],
+  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+  async function refresh() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await appBridge.refreshWatchlistPrices(profileId);
+      await load();
+      setMessage(`已更新 ${result.updated} 个价格数据点`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "行情刷新失败，已保留缓存",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="page watchlist-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">PORTFOLIO RESEARCH</p>
+          <h1>Watchlist</h1>
+          <p>从关注列表进入公司的财务与估值分析。</p>
+        </div>
+        <div className="heading-actions">
+          <button onClick={() => setAdding(true)}>
+            <Plus /> 添加公司
+          </button>
+          <button
+            className="primary"
+            disabled={busy || !rows.length}
+            onClick={() => void refresh()}
+          >
+            <RefreshCw className={busy ? "spin" : ""} /> Refresh Prices
+          </button>
+        </div>
+      </div>
+      {message && <div className="notice">{message}</div>}
+      <div className="watch-table-wrap">
+        <table className="watch-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Price Graph</th>
+              <th>Last Price</th>
+              <th>Buy Price</th>
+              <th>Intrinsic Value</th>
+              <th>Relative Value</th>
+              <th aria-label="Remove" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <WatchRow
+                key={row.instrument.instrumentId}
+                profileId={profileId}
+                row={row}
+                onOpen={onOpen}
+                onChanged={load}
+              />
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={7} className="empty-cell">
+                  Watchlist 为空，添加第一家公司开始研究。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {adding && (
+        <InstrumentForm
+          profileId={profileId}
+          onClose={() => setAdding(false)}
+          onSaved={async (instrument) => {
+            setAdding(false);
+            await load();
+            onOpen(instrument.instrumentId);
+          }}
+        />
+      )}
+    </main>
+  );
 }
 
-function WatchRow({ profileId, row, onOpen, onChanged }: { profileId: string; row: WatchlistRow; onOpen: (id: string) => void; onChanged: () => Promise<void> }) {
-  const price = Number(row.lastPrice), previous = Number(row.previousClose), change = previous > 0 ? (price - previous) / previous * 100 : NaN;
-  const dcf = Number(row.dcfBase), relative = Number(row.relativeBase), dcfDiscount = dcf > 0 && price > 0 ? (dcf - price) / dcf * 100 : NaN, relativeUpside = relative > 0 && price > 0 ? (relative - price) / price * 100 : NaN;
-  async function buyPrice(value: string) { await appBridge.saveInstrument(profileId, { ...row.instrument, buyPrice: value || null }); await onChanged(); }
-  async function overridePrice() { const value = window.prompt("输入人工价格；留空可恢复使用 AKShare 行情。", row.manualOverride ? row.lastPrice ?? "" : ""); if (value === null) return; const price = Number(value); if (value.trim() && (!Number.isFinite(price) || price <= 0)) { window.alert("价格必须是大于零的数字。"); return; } await appBridge.saveInstrument(profileId, { ...row.instrument, manualPriceOverride: value.trim() ? { price: value.trim(), previousClose: row.previousClose ?? null, observedAt: new Date().toISOString(), source: "Manual Override" } : null }); await onChanged(); }
-  async function remove() { if (!window.confirm(`从 Watchlist 移除 ${row.instrument.name}？研究数据不会删除。`)) return; await appBridge.removeWatchlistInstrument(profileId, row.instrument.instrumentId); await onChanged(); }
-  return <tr><td><button className="company-cell" onClick={() => onOpen(row.instrument.instrumentId)}><span className="company-logo">{row.instrument.name.slice(0, 1)}</span><span><strong>{row.instrument.name}</strong><small>{row.instrument.symbol}</small></span></button></td><td><Sparkline values={row.priceHistory.map(Number)} /></td><td className="numeric"><strong>{hkd(row.lastPrice)}</strong><small className={change >= 0 ? "positive" : "negative"}>{pct(change)}</small><button className="price-override" onClick={() => void overridePrice()}>{row.manualOverride ? "Manual Override" : "Override"}</button></td><td><input className="buy-input" defaultValue={row.instrument.buyPrice ?? ""} placeholder="Set" onBlur={(event) => void buyPrice(event.target.value)} /></td><td className="numeric"><strong>{hkd(row.dcfBase)}</strong><small className={dcfDiscount >= 0 ? "positive badge" : "negative badge"}>{Number.isFinite(dcfDiscount) ? `${Math.abs(dcfDiscount).toFixed(0)}% ${dcfDiscount >= 0 ? "Undervalued" : "Overvalued"}` : "Not valued"}</small></td><td className="numeric"><strong>{hkd(row.relativeBase)}</strong><small className={relativeUpside >= 0 ? "positive badge" : "negative badge"}>{Number.isFinite(relativeUpside) ? `${Math.abs(relativeUpside).toFixed(0)}% ${relativeUpside >= 0 ? "Upside" : "Downside"}` : "Not valued"}</small></td><td><button className="delete-button" aria-label={`移除 ${row.instrument.name}`} onClick={() => void remove()}><Trash2 /></button></td></tr>;
+function WatchRow({
+  profileId,
+  row,
+  onOpen,
+  onChanged,
+}: {
+  profileId: string;
+  row: WatchlistRow;
+  onOpen: (id: string) => void;
+  onChanged: () => Promise<void>;
+}) {
+  const price = Number(row.lastPrice),
+    previous = Number(row.previousClose),
+    change = previous > 0 ? ((price - previous) / previous) * 100 : NaN;
+  const dcf = Number(row.dcfBase),
+    relative = Number(row.relativeBase),
+    dcfDiscount = dcf > 0 && price > 0 ? ((dcf - price) / dcf) * 100 : NaN,
+    relativeUpside =
+      relative > 0 && price > 0 ? ((relative - price) / price) * 100 : NaN;
+  async function buyPrice(value: string) {
+    await appBridge.saveInstrument(profileId, {
+      ...row.instrument,
+      buyPrice: value || null,
+    });
+    await onChanged();
+  }
+  async function overridePrice() {
+    const value = window.prompt(
+      "输入人工价格；留空可恢复使用 AKShare 行情。",
+      row.manualOverride ? (row.lastPrice ?? "") : "",
+    );
+    if (value === null) return;
+    const price = Number(value);
+    if (value.trim() && (!Number.isFinite(price) || price <= 0)) {
+      window.alert("价格必须是大于零的数字。");
+      return;
+    }
+    await appBridge.saveInstrument(profileId, {
+      ...row.instrument,
+      manualPriceOverride: value.trim()
+        ? {
+            price: value.trim(),
+            previousClose: row.previousClose ?? null,
+            observedAt: new Date().toISOString(),
+            source: "Manual Override",
+          }
+        : null,
+    });
+    await onChanged();
+  }
+  async function remove() {
+    if (
+      !window.confirm(
+        `从 Watchlist 移除 ${row.instrument.name}？研究数据不会删除。`,
+      )
+    )
+      return;
+    await appBridge.removeWatchlistInstrument(
+      profileId,
+      row.instrument.instrumentId,
+    );
+    await onChanged();
+  }
+  return (
+    <tr>
+      <td>
+        <button
+          className="company-cell"
+          onClick={() => onOpen(row.instrument.instrumentId)}
+        >
+          <span className="company-logo">
+            {row.instrument.name.slice(0, 1)}
+          </span>
+          <span>
+            <strong>{row.instrument.name}</strong>
+            <small>{row.instrument.symbol}</small>
+          </span>
+        </button>
+      </td>
+      <td>
+        <Sparkline values={row.priceHistory.map(Number)} />
+      </td>
+      <td className="numeric">
+        <strong>{hkd(row.lastPrice)}</strong>
+        <small className={change >= 0 ? "positive" : "negative"}>
+          {pct(change)}
+        </small>
+        <button className="price-override" onClick={() => void overridePrice()}>
+          {row.manualOverride ? "Manual Override" : "Override"}
+        </button>
+      </td>
+      <td>
+        <input
+          className="buy-input"
+          defaultValue={row.instrument.buyPrice ?? ""}
+          placeholder="Set"
+          onBlur={(event) => void buyPrice(event.target.value)}
+        />
+      </td>
+      <td className="numeric">
+        <strong>{hkd(row.dcfBase)}</strong>
+        <small
+          className={dcfDiscount >= 0 ? "positive badge" : "negative badge"}
+        >
+          {Number.isFinite(dcfDiscount)
+            ? `${Math.abs(dcfDiscount).toFixed(0)}% ${dcfDiscount >= 0 ? "Undervalued" : "Overvalued"}`
+            : "Not valued"}
+        </small>
+      </td>
+      <td className="numeric">
+        <strong>{hkd(row.relativeBase)}</strong>
+        <small
+          className={relativeUpside >= 0 ? "positive badge" : "negative badge"}
+        >
+          {Number.isFinite(relativeUpside)
+            ? `${Math.abs(relativeUpside).toFixed(0)}% ${relativeUpside >= 0 ? "Upside" : "Downside"}`
+            : "Not valued"}
+        </small>
+      </td>
+      <td>
+        <button
+          className="delete-button"
+          aria-label={`移除 ${row.instrument.name}`}
+          onClick={() => void remove()}
+        >
+          <Trash2 />
+        </button>
+      </td>
+    </tr>
+  );
 }
 
-function InstrumentForm({ profileId, onClose, onSaved }: { profileId: string; onClose: () => void; onSaved: (instrument: InstrumentProfile) => void }) {
-  const [form, setForm] = useState({ instrumentId: "HKEX:", symbol: "", name: "", announcementUrl: "", investorRelationsUrl: "" }); const [error, setError] = useState("");
-  async function submit(event: FormEvent) { event.preventDefault(); try { const saved = await appBridge.saveInstrument(profileId, { ...form, currency: "HKD", buyPrice: null, priceSnapshots: [], manualPriceOverride: null }); onSaved(saved); } catch (reason) { setError(reason instanceof Error ? reason.message : "保存失败"); } }
-  return <Modal title="添加公司" onClose={onClose}><form className="form-grid" onSubmit={(event) => void submit(event)}><label>Instrument ID<input value={form.instrumentId} onChange={(e) => setForm({ ...form, instrumentId: e.target.value })} required /></label><label>港股代码<input value={form.symbol} placeholder="01810" onChange={(e) => setForm({ ...form, symbol: e.target.value })} required /></label><label className="wide">公司名称<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label className="wide">HKEX 公告 HTTPS URL<input type="url" value={form.announcementUrl} onChange={(e) => setForm({ ...form, announcementUrl: e.target.value })} /></label><label className="wide">Investor Relations HTTPS URL<input type="url" value={form.investorRelationsUrl} onChange={(e) => setForm({ ...form, investorRelationsUrl: e.target.value })} /></label>{error && <p className="form-error wide">{error}</p>}<div className="modal-actions wide"><button type="button" onClick={onClose}>取消</button><button className="primary">添加到 Watchlist</button></div></form></Modal>;
+function InstrumentForm({
+  profileId,
+  onClose,
+  onSaved,
+}: {
+  profileId: string;
+  onClose: () => void;
+  onSaved: (instrument: InstrumentProfile) => void;
+}) {
+  const [form, setForm] = useState({
+    instrumentId: "HKEX:",
+    symbol: "",
+    name: "",
+    announcementUrl: "",
+    investorRelationsUrl: "",
+  });
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const saved = await appBridge.saveInstrument(profileId, {
+        ...form,
+        currency: "HKD",
+        buyPrice: null,
+        priceSnapshots: [],
+        manualPriceOverride: null,
+      });
+      onSaved(saved);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存失败");
+    }
+  }
+  return (
+    <Modal title="添加公司" onClose={onClose}>
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label>
+          Instrument ID
+          <input
+            value={form.instrumentId}
+            onChange={(e) => setForm({ ...form, instrumentId: e.target.value })}
+            required
+          />
+        </label>
+        <label>
+          港股代码
+          <input
+            value={form.symbol}
+            placeholder="01810"
+            onChange={(e) => setForm({ ...form, symbol: e.target.value })}
+            required
+          />
+        </label>
+        <label className="wide">
+          公司名称
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+        </label>
+        <label className="wide">
+          HKEX 公告 HTTPS URL
+          <input
+            type="url"
+            value={form.announcementUrl}
+            onChange={(e) =>
+              setForm({ ...form, announcementUrl: e.target.value })
+            }
+          />
+        </label>
+        <label className="wide">
+          Investor Relations HTTPS URL
+          <input
+            type="url"
+            value={form.investorRelationsUrl}
+            onChange={(e) =>
+              setForm({ ...form, investorRelationsUrl: e.target.value })
+            }
+          />
+        </label>
+        {error && <p className="form-error wide">{error}</p>}
+        <div className="modal-actions wide">
+          <button type="button" onClick={onClose}>
+            取消
+          </button>
+          <button className="primary">添加到 Watchlist</button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 type Tab = "summary" | "financials" | "dcf" | "relative";
-function InstrumentWorkspace({ profileId, instrumentId, onBack }: { profileId: string; instrumentId: string; onBack: () => void }) {
-  const [summary, setSummary] = useState<InstrumentSummary>(); const [tab, setTab] = useState<Tab>("summary"); const load = useCallback(async () => setSummary(await appBridge.getInstrumentSummary(profileId, instrumentId)), [profileId, instrumentId]);
-  useEffect(() => { void load(); }, [load]); if (!summary) return <main className="loading">正在加载公司研究…</main>;
-  const price = Number(summary.price?.price), previous = Number(summary.price?.previousClose), change = previous > 0 ? (price - previous) / previous * 100 : NaN;
-  return <main className="company-page"><header className="company-header"><button className="back-button" onClick={onBack}><ArrowLeft /> Watchlist</button><div className="company-identity"><span className="company-logo large">{summary.instrument.name.slice(0, 1)}</span><div><h1>{summary.instrument.name}</h1><small>{summary.instrument.symbol} · {summary.instrument.currency}</small></div></div><div className="company-price"><strong>{hkd(summary.price?.price)}</strong><span className={change >= 0 ? "positive" : "negative"}>{pct(change)}</span><small>{summary.price?.source ?? "No market data"}</small></div><div className="company-links">{summary.instrument.announcementUrl && <a href={summary.instrument.announcementUrl} target="_blank" rel="noreferrer">公告 <ExternalLink /></a>}{summary.instrument.investorRelationsUrl && <a href={summary.instrument.investorRelationsUrl} target="_blank" rel="noreferrer">IR <ExternalLink /></a>}</div></header><nav className="company-tabs">{([['summary','Summary'],['financials','Financials'],['dcf','DCF Valuation'],['relative','Relative Valuation']] as const).map(([key, label]) => <button className={tab === key ? "active" : ""} onClick={() => setTab(key)} key={key}>{label}</button>)}</nav>{tab === "summary" ? <SummaryTab summary={summary} /> : tab === "financials" ? <FinancialsTab profileId={profileId} summary={summary} onChanged={load} /> : tab === "dcf" ? <DcfTab profileId={profileId} summary={summary} onChanged={load} /> : <RelativeTab profileId={profileId} summary={summary} onChanged={load} />}</main>;
+function InstrumentWorkspace({
+  profileId,
+  instrumentId,
+  onBack,
+}: {
+  profileId: string;
+  instrumentId: string;
+  onBack: () => void;
+}) {
+  const [summary, setSummary] = useState<InstrumentSummary>();
+  const [tab, setTab] = useState<Tab>("summary");
+  const load = useCallback(
+    async () =>
+      setSummary(await appBridge.getInstrumentSummary(profileId, instrumentId)),
+    [profileId, instrumentId],
+  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+  if (!summary) return <main className="loading">正在加载公司研究…</main>;
+  const price = Number(summary.price?.price),
+    previous = Number(summary.price?.previousClose),
+    change = previous > 0 ? ((price - previous) / previous) * 100 : NaN;
+  return (
+    <main className="company-page">
+      <header className="company-header">
+        <button className="back-button" onClick={onBack}>
+          <ArrowLeft /> Watchlist
+        </button>
+        <div className="company-identity">
+          <span className="company-logo large">
+            {summary.instrument.name.slice(0, 1)}
+          </span>
+          <div>
+            <h1>{summary.instrument.name}</h1>
+            <small>
+              {summary.instrument.symbol} · {summary.instrument.currency}
+            </small>
+          </div>
+        </div>
+        <div className="company-price">
+          <strong>{hkd(summary.price?.price)}</strong>
+          <span className={change >= 0 ? "positive" : "negative"}>
+            {pct(change)}
+          </span>
+          <small>{summary.price?.source ?? "No market data"}</small>
+        </div>
+        <div className="company-links">
+          {summary.instrument.announcementUrl && (
+            <a
+              href={summary.instrument.announcementUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              公告 <ExternalLink />
+            </a>
+          )}
+          {summary.instrument.investorRelationsUrl && (
+            <a
+              href={summary.instrument.investorRelationsUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              IR <ExternalLink />
+            </a>
+          )}
+        </div>
+      </header>
+      <nav className="company-tabs">
+        {(
+          [
+            ["summary", "Summary"],
+            ["financials", "Financials"],
+            ["dcf", "DCF Valuation"],
+            ["relative", "Relative Valuation"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            className={tab === key ? "active" : ""}
+            onClick={() => setTab(key)}
+            key={key}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {tab === "summary" ? (
+        <SummaryTab summary={summary} />
+      ) : tab === "financials" ? (
+        <FinancialsTab
+          profileId={profileId}
+          summary={summary}
+          onChanged={load}
+        />
+      ) : tab === "dcf" ? (
+        <DcfTab profileId={profileId} summary={summary} onChanged={load} />
+      ) : (
+        <RelativeTab profileId={profileId} summary={summary} onChanged={load} />
+      )}
+    </main>
+  );
 }
 
 function SummaryTab({ summary }: { summary: InstrumentSummary }) {
-  const price = Number(summary.price?.price), dcf = Number(summary.dcf?.base.valuePerShare), relative = Number(summary.relative?.base);
-  return <section className="analysis-page"><div className="analysis-intro"><p className="eyebrow">INTRINSIC VALUE</p><h2>{summary.instrument.name} 目前的价格与价值</h2><p>DCF 与市场倍数是两种独立参照，不合并成缺乏依据的单一数字。</p></div><div className="summary-value-grid"><ValueCard title="Current Price" value={hkd(summary.price?.price)} detail={summary.price?.observedAt?.slice(0,10) ?? "等待行情"} /><ValueCard title="DCF Base" value={hkd(summary.dcf?.base.valuePerShare)} detail={dcf > 0 && price > 0 ? `${Math.abs((dcf-price)/dcf*100).toFixed(0)}% ${dcf >= price ? "Undervalued" : "Overvalued"}` : "Not valued"} tone={dcf >= price ? "good" : "bad"} /><ValueCard title="Relative Base" value={hkd(summary.relative?.base)} detail={relative > 0 && price > 0 ? `${pct((relative-price)/price*100)} potential` : "Not valued"} tone={relative >= price ? "good" : "bad"} /><ValueCard title="Buy Price" value={hkd(summary.instrument.buyPrice)} detail="Manual target" /></div><ValuationRange current={price} bear={Number(summary.dcf?.bear.valuePerShare)} base={dcf} bull={Number(summary.dcf?.bull.valuePerShare)} label="DCF valuation range" />{summary.ledger && <div className="ledger-strip"><div><small>当前持股</small><strong>{Number(summary.ledger.quantity).toLocaleString()} 股</strong></div><div><small>现金</small><strong>{hkd(summary.ledger.cash)}</strong></div><div><small>Stage 1</small><strong className="positive">{summary.stageOneCompleted ? "已完成" : "—"}</strong></div><p>只读账本摘要；本原型不提供交易操作。</p></div>}</section>;
+  const [scenario, setScenario] = useState<"bear" | "base" | "bull">("base");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const price = Number(summary.price?.price);
+  const selected = summary.dcf?.[scenario];
+  const value = Number(selected?.valuePerShare);
+  const relative = Number(summary.relative?.base);
+  const gap = value > 0 && price > 0 ? ((value - price) / value) * 100 : NaN;
+  const scenarioName = `${scenario[0].toUpperCase()}${scenario.slice(1)}`;
+  const status = Number.isFinite(gap)
+    ? `${Math.abs(gap).toFixed(0)}% ${gap >= 0 ? "低估" : "高估"}`
+    : "—";
+
+  return (
+    <>
+      <section className="summary-hero">
+        <div className="summary-copy">
+          <p className="eyebrow">INTRINSIC VALUE</p>
+          <h2>
+            {value > 0 && price > 0
+              ? `${summary.instrument.name} 的 ${scenarioName} DCF 内在价值为 ${hkd(String(value))}；相对当前价格 ${hkd(String(price))}，${gap >= 0 ? "低估" : "高估"} ${Math.abs(gap).toFixed(0)}%。`
+              : "完成 DCF 后显示价值结论。"}
+          </h2>
+          <div className="method-chip">
+            DCF <strong>{hkd(selected?.valuePerShare)}</strong>
+          </div>
+          <p className="reference-label">其他独立参考</p>
+          <div className="reference-chip">
+            Relative Valuation <strong>{hkd(summary.relative?.base)}</strong>
+          </div>
+          <p className="method-note">
+            DCF：{summary.dcf?.input.asOf ?? "—"} · 价格：
+            {summary.price?.observedAt?.slice(0, 10) ?? "—"} ·{" "}
+            {summary.price?.source ?? "无行情"}
+          </p>
+        </div>
+        <div className="hero-value">
+          <small>Intrinsic Value</small>
+          <strong>{hkd(selected?.valuePerShare)}</strong>
+          <div
+            className={
+              gap >= 0
+                ? "valuation-status positive"
+                : "valuation-status negative"
+            }
+          >
+            {Number.isFinite(gap)
+              ? `${gap >= 0 ? "UNDERVALUATION" : "OVERVALUATION"} ${Math.abs(gap).toFixed(0)}%`
+              : "DATA INSUFFICIENT"}
+          </div>
+          <div className="hero-bar">
+            <span>Intrinsic Value</span>
+            <i
+              style={{
+                width: `${Number.isFinite(gap) ? Math.min(100, Math.max(12, 100 - gap)) : 50}%`,
+              }}
+            />
+          </div>
+          <div className="hero-price">
+            Price <strong>{hkd(summary.price?.price)}</strong>
+          </div>
+          <div className="scenario-switch">
+            {(["bear", "base", "bull"] as const).map((key) => (
+              <button
+                className={scenario === key ? "active" : ""}
+                key={key}
+                onClick={() => setScenario(key)}
+              >
+                {key[0].toUpperCase() + key.slice(1)} Case
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="analysis-page summary-history">
+        <div className="section-heading">
+          <div>
+            <h2>{summary.instrument.name} 历史估值</h2>
+          </div>
+          <button className="outline" onClick={() => setHistoryOpen(true)}>
+            查看估值历史
+          </button>
+        </div>
+        <p>
+          {summary.valuationHistory.length >= 2
+            ? "价格与每期年报重算的 DCF Base 对比。历史值可审阅、可复算，不由当前估值倒推。"
+            : "Data Insufficient：保存多次估值后显示历史趋势。"}
+        </p>
+        <div className="history-chips">
+          <ValueCard title="当前估值" value={status} detail="DCF Base" />
+          <ValueCard
+            title="历史快照"
+            value={String(summary.valuationHistory.length)}
+            detail="年度年报重算"
+          />
+          <ValueCard
+            title="Relative Base"
+            value={hkd(summary.relative?.base)}
+            detail={
+              relative > 0 && price > 0
+                ? pct(((relative - price) / price) * 100)
+                : "—"
+            }
+          />
+        </div>
+        <ValuationHistoryChart history={summary.valuationHistory} />
+        {summary.ledger && (
+          <div className="ledger-strip">
+            <div>
+              <small>当前持股</small>
+              <strong>
+                {Number(summary.ledger.quantity).toLocaleString()} 股
+              </strong>
+            </div>
+            <div>
+              <small>现金</small>
+              <strong>{hkd(summary.ledger.cash)}</strong>
+            </div>
+            <div>
+              <small>Stage 1</small>
+              <strong className="positive">
+                {summary.stageOneCompleted ? "已完成" : "—"}
+              </strong>
+            </div>
+            <p>只读账本摘要；本原型不提供交易操作。</p>
+          </div>
+        )}
+      </section>
+      {historyOpen && (
+        <ValuationHistoryModal
+          history={summary.valuationHistory}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
+    </>
+  );
 }
 
-function ValueCard({ title, value, detail, tone }: { title: string; value: string; detail: string; tone?: "good" | "bad" }) { return <div className="value-card"><small>{title}</small><strong>{value}</strong><span className={tone === "good" ? "positive" : tone === "bad" ? "negative" : ""}>{detail}</span></div>; }
-
-function FinancialsTab({ profileId, summary, onChanged }: { profileId: string; summary: InstrumentSummary; onChanged: () => Promise<void> }) {
-  const [section, setSection] = useState<"income"|"balance"|"cashflow">("income"), [editing, setEditing] = useState(false); const rows = [...summary.financials].sort((a,b) => a.year-b.year).slice(-5);
-  const series = section === "income" ? [{ label: "Revenue", values: rows.map((item) => Number(item.revenue)) }, { label: "Net Income", values: rows.map((item) => Number(item.netIncome)) }] : section === "balance" ? [{ label: "Cash", values: rows.map((item) => Number(item.cash)) }, { label: "Debt", values: rows.map((item) => Number(item.debt)) }] : [{ label: "Operating CF", values: rows.map((item) => Number(item.operatingCashFlow)) }, { label: "FCF Proxy", values: rows.map((item) => Number(item.operatingCashFlow)-Number(item.capex)) }];
-  return <section className="analysis-page"><div className="analysis-toolbar"><div><p className="eyebrow">ANNUAL FINANCIALS</p><h2>最近五年财务趋势</h2></div><button className="primary" onClick={() => setEditing(true)}><Plus /> Add / Edit Year</button></div><div className="segmented">{([['income','Income Statement'],['balance','Balance Sheet'],['cashflow','Cash Flow']] as const).map(([key,label]) => <button className={section===key?'active':''} onClick={() => setSection(key)} key={key}>{label}</button>)}</div><FinancialChart years={rows.map((item) => item.year)} series={series} /><table className="data-table"><thead><tr><th>Metric</th>{rows.map((item) => <th key={item.year}>{item.year}</th>)}</tr></thead><tbody>{section === "income" ? <><MetricRow label="Revenue" values={rows.map((item) => item.revenue)} /><MetricRow label="Net Income" values={rows.map((item) => item.netIncome)} /><MetricRow label="Net Margin" values={rows.map((item) => Number(item.revenue) ? `${(Number(item.netIncome)/Number(item.revenue)*100).toFixed(1)}%` : "—")} /></> : section === "balance" ? <><MetricRow label="Cash" values={rows.map((item) => item.cash)} /><MetricRow label="Debt" values={rows.map((item) => item.debt)} /><MetricRow label="Equity" values={rows.map((item) => item.equity)} /></> : <><MetricRow label="Operating Cash Flow" values={rows.map((item) => item.operatingCashFlow)} /><MetricRow label="Capex" values={rows.map((item) => item.capex)} /><MetricRow label="FCF Proxy" values={rows.map((item) => String(Number(item.operatingCashFlow)-Number(item.capex)))} /></>}</tbody></table><p className="method-note">FCF Proxy = Operating Cash Flow − Capex。数据由用户维护，不由 AKShare 自动写入。</p>{editing && <FinancialForm profileId={profileId} instrumentId={summary.instrument.instrumentId} onClose={() => setEditing(false)} onSaved={async () => { setEditing(false); await onChanged(); }} />}</section>;
+function ValuationHistoryModal({
+  history,
+  onClose,
+}: {
+  history: InstrumentSummary["valuationHistory"];
+  onClose: () => void;
+}) {
+  const rows = [...history].sort((left, right) =>
+    right.asOf.localeCompare(left.asOf),
+  );
+  return (
+    <Modal wide title="估值历史 — 年报重算快照" onClose={onClose}>
+      <p className="method-note">
+        每个点保存估值日期、当期市场价、完整 DCF 输入和来源。修改请在 DCF
+        Valuation 的计算弹层指定估值日期后保存。
+      </p>
+      <table className="data-table compact history-table">
+        <thead>
+          <tr>
+            <th>估值日期</th>
+            <th>报告期</th>
+            <th>市场价格</th>
+            <th>DCF / Share</th>
+            <th>来源</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.asOf}-${row.dcf.contentHash}`}>
+              <td>{row.asOf}</td>
+              <td>{row.reportPeriod}</td>
+              <td>{hkd(row.marketPrice)}</td>
+              <td>{hkd(row.dcf.base.valuePerShare)}</td>
+              <td>
+                {row.sourceUrl.startsWith("http") ? (
+                  <a href={row.sourceUrl} target="_blank" rel="noreferrer">
+                    年报来源 <ExternalLink />
+                  </a>
+                ) : (
+                  row.sourceUrl
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!rows.length && <div className="chart-empty">Data Insufficient</div>}
+      <div className="modal-actions">
+        <button onClick={onClose}>关闭</button>
+      </div>
+    </Modal>
+  );
+}
+function ValuationHistoryChart({
+  history,
+}: {
+  history: InstrumentSummary["valuationHistory"];
+}) {
+  const rows = [...history].sort((a, b) => a.asOf.localeCompare(b.asOf)),
+    values = rows
+      .flatMap((row) => [
+        Number(row.marketPrice),
+        Number(row.dcf.base.valuePerShare),
+      ])
+      .filter(Number.isFinite);
+  if (rows.length < 2 || !values.length)
+    return <div className="chart-empty">Data Insufficient</div>;
+  const min = Math.min(...values) * 0.85,
+    max = Math.max(...values) * 1.1,
+    range = max - min || 1,
+    points = (values: number[]) =>
+      values
+        .map(
+          (value, index) =>
+            `${44 + (index / Math.max(1, rows.length - 1)) * 656},${193 - ((value - min) / range) * 160}`,
+        )
+        .join(" ");
+  return (
+    <div className="financial-chart history-chart">
+      <svg viewBox="0 0 720 240" role="img" aria-label="Valuation history">
+        {[0, 1, 2, 3, 4].map((line) => (
+          <line
+            key={line}
+            x1="44"
+            x2="700"
+            y1={25 + line * 42}
+            y2={25 + line * 42}
+          />
+        ))}
+        <polyline
+          className="market-line"
+          points={points(rows.map((row) => Number(row.marketPrice)))}
+        />
+        <polyline
+          className="value-line"
+          points={points(rows.map((row) => Number(row.dcf.base.valuePerShare)))}
+        />
+      </svg>
+      <div className="chart-legend">
+        <span>
+          <i className="market-dot" />
+          Market Price
+        </span>
+        <span>
+          <i className="value-dot" />
+          DCF Base
+        </span>
+        {rows.map((row) => (
+          <small key={row.asOf}>{row.asOf.slice(0, 4)}</small>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function MetricRow({ label, values }: { label: string; values: string[] }) { return <tr><th>{label}</th>{values.map((value,index) => <td key={index}>{value === "—" || value.includes("%") ? value : Number(value).toLocaleString()}</td>)}</tr>; }
-function FinancialForm({ profileId, instrumentId, onClose, onSaved }: { profileId: string; instrumentId: string; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<AnnualFinancials>({ instrumentId, year: new Date().getFullYear()-1, currency: "HKD", revenue: "", netIncome: "", cash: "", debt: "", equity: "", operatingCashFlow: "", capex: "", sourceUrl: "", updatedAt: new Date().toISOString() }), [error,setError]=useState("");
-  async function submit(e:FormEvent){e.preventDefault();try{await appBridge.saveAnnualFinancials(profileId,{...form,updatedAt:new Date().toISOString()});onSaved();}catch(reason){setError(reason instanceof Error?reason.message:"保存失败");}}
-  return <Modal title="Add / Edit Annual Financials" onClose={onClose}><form className="form-grid" onSubmit={(e)=>void submit(e)}>{([['year','Year'],['revenue','Revenue'],['netIncome','Net Income'],['cash','Cash'],['debt','Debt'],['equity','Equity'],['operatingCashFlow','Operating Cash Flow'],['capex','Capex']] as const).map(([key,label])=><label key={key}>{label}<input type="number" step="any" value={form[key]} onChange={(e)=>setForm({...form,[key]:key==='year'?Number(e.target.value):e.target.value})} required /></label>)}<label className="wide">Source URL<input type="url" value={form.sourceUrl} onChange={(e)=>setForm({...form,sourceUrl:e.target.value})} /></label>{error&&<p className="form-error wide">{error}</p>}<div className="modal-actions wide"><button type="button" onClick={onClose}>Cancel</button><button className="primary">Save Year</button></div></form></Modal>;
+function ValueCard({
+  title,
+  value,
+  detail,
+  tone,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "good" | "bad";
+}) {
+  return (
+    <div className="value-card">
+      <small>{title}</small>
+      <strong>{value}</strong>
+      <span
+        className={
+          tone === "good" ? "positive" : tone === "bad" ? "negative" : ""
+        }
+      >
+        {detail}
+      </span>
+    </div>
+  );
 }
 
-function DcfTab({ profileId, summary, onChanged }: { profileId: string; summary: InstrumentSummary; onChanged: () => Promise<void> }) {
-  const [scenario, setScenario] = useState<"bear"|"base"|"bull">("base"), [open,setOpen]=useState(false); const result=summary.dcf, selected=result?.[scenario], current=Number(summary.price?.price), value=Number(selected?.valuePerShare), margin=value>0&&current>0?(value-current)/value*100:NaN;
-  return <section className="analysis-page"><div className="valuation-copy"><p className="eyebrow">DCF VALUE</p><h2>{selected ? `${scenario[0].toUpperCase()+scenario.slice(1)} Case DCF Value is ${hkd(selected.valuePerShare)}.` : "DCF model has not been saved."}</h2><p>{Number.isFinite(margin) ? `Compared with current price ${hkd(String(current))}, the stock appears ${Math.abs(margin).toFixed(0)}% ${margin>=0?'undervalued':'overvalued'}.` : "Open the calculation to create the first five-year FCFE Proxy model."}</p><button className="outline" onClick={()=>setOpen(true)}>View Calculation</button></div><div className="key-assumptions"><strong>Key assumptions</strong><p>• Revenue Growth {result ? `${(Number(result.input[scenario].revenueGrowth)*100).toFixed(1)}%` : "—"}</p><p>• Net Margin {result ? `${(Number(result.input.startingNetMargin)*100).toFixed(1)}% → ${(Number(result.input[scenario].endingNetMargin)*100).toFixed(1)}%` : "—"}</p></div><ScenarioCard type="DCF" current={current} result={result ? {bear:Number(result.bear.valuePerShare),base:Number(result.base.valuePerShare),bull:Number(result.bull.valuePerShare)} : undefined} selected={scenario} onSelect={setScenario} /><p className="method-note">Updated {result?.input.asOf ?? "—"} · FCFE Proxy model · Terminal value share {selected ? pct(Number(selected.terminalValueShare)*100) : "—"}</p>{open&&<DcfModal profileId={profileId} summary={summary} onClose={()=>setOpen(false)} onSaved={async()=>{setOpen(false);await onChanged();}} />}</section>;
+function FinancialsTab({
+  profileId,
+  summary,
+  onChanged,
+}: {
+  profileId: string;
+  summary: InstrumentSummary;
+  onChanged: () => Promise<void>;
+}) {
+  const [section, setSection] = useState<"income" | "balance" | "cashflow">(
+      "income",
+    ),
+    [editing, setEditing] = useState(false);
+  const rows = [...summary.financials]
+    .sort((a, b) => a.year - b.year)
+    .slice(-5);
+  const series =
+    section === "income"
+      ? [
+          {
+            label: "Revenue",
+            values: rows.map((item) => Number(item.revenue)),
+          },
+          {
+            label: "Net Income",
+            values: rows.map((item) => Number(item.netIncome)),
+          },
+        ]
+      : section === "balance"
+        ? [
+            { label: "Cash", values: rows.map((item) => Number(item.cash)) },
+            { label: "Debt", values: rows.map((item) => Number(item.debt)) },
+          ]
+        : [
+            {
+              label: "Operating CF",
+              values: rows.map((item) => Number(item.operatingCashFlow)),
+            },
+            {
+              label: "FCF Proxy",
+              values: rows.map(
+                (item) => Number(item.operatingCashFlow) - Number(item.capex),
+              ),
+            },
+          ];
+  return (
+    <section className="analysis-page">
+      <div className="analysis-toolbar">
+        <div>
+          <p className="eyebrow">ANNUAL FINANCIALS</p>
+          <h2>最近五年财务趋势</h2>
+        </div>
+        <button className="primary" onClick={() => setEditing(true)}>
+          <Plus /> Add / Edit Year
+        </button>
+      </div>
+      <div className="segmented">
+        {(
+          [
+            ["income", "Income Statement"],
+            ["balance", "Balance Sheet"],
+            ["cashflow", "Cash Flow"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            className={section === key ? "active" : ""}
+            onClick={() => setSection(key)}
+            key={key}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <FinancialChart years={rows.map((item) => item.year)} series={series} />
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            {rows.map((item) => (
+              <th key={item.year}>{item.year}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {section === "income" ? (
+            <>
+              <MetricRow
+                label="Revenue"
+                values={rows.map((item) => item.revenue)}
+              />
+              <MetricRow
+                label="Net Income"
+                values={rows.map((item) => item.netIncome)}
+              />
+              <MetricRow
+                label="Net Margin"
+                values={rows.map((item) =>
+                  Number(item.revenue)
+                    ? `${((Number(item.netIncome) / Number(item.revenue)) * 100).toFixed(1)}%`
+                    : "—",
+                )}
+              />
+            </>
+          ) : section === "balance" ? (
+            <>
+              <MetricRow label="Cash" values={rows.map((item) => item.cash)} />
+              <MetricRow label="Debt" values={rows.map((item) => item.debt)} />
+              <MetricRow
+                label="Equity"
+                values={rows.map((item) => item.equity)}
+              />
+            </>
+          ) : (
+            <>
+              <MetricRow
+                label="Operating Cash Flow"
+                values={rows.map((item) => item.operatingCashFlow)}
+              />
+              <MetricRow
+                label="Capex"
+                values={rows.map((item) => item.capex)}
+              />
+              <MetricRow
+                label="FCF Proxy"
+                values={rows.map((item) =>
+                  String(Number(item.operatingCashFlow) - Number(item.capex)),
+                )}
+              />
+            </>
+          )}
+        </tbody>
+      </table>
+      <p className="method-note">
+        FCF Proxy = Operating Cash Flow − Capex。数据由用户维护，不由 AKShare
+        自动写入。
+      </p>
+      {editing && (
+        <FinancialForm
+          profileId={profileId}
+          instrumentId={summary.instrument.instrumentId}
+          onClose={() => setEditing(false)}
+          onSaved={async () => {
+            setEditing(false);
+            await onChanged();
+          }}
+        />
+      )}
+    </section>
+  );
 }
 
-function defaultDcf(summary: InstrumentSummary): DcfInput { const latest=[...summary.financials].sort((a,b)=>b.year-a.year)[0], revenue=latest?.revenue??"", margin=latest&&Number(latest.revenue)?String(Number(latest.netIncome)/Number(latest.revenue)):"0.058"; const scenario=(growth:string,end:string,discount:string,pe:string):DcfScenarioInput=>({revenueGrowth:growth,endingNetMargin:end,cashConversion:"0.9",discountRate:discount,exitPe:pe}); return summary.dcf?.input??{instrumentId:summary.instrument.instrumentId,startingRevenue:revenue,startingNetMargin:margin,dilutedShares:"",forecastYears:5,bear:scenario("0.04","0.06","0.11","12"),base:scenario("0.09","0.082","0.09","17"),bull:scenario("0.14","0.10","0.08","22"),asOf:today()}; }
-function DcfModal({profileId,summary,onClose,onSaved}:{profileId:string;summary:InstrumentSummary;onClose:()=>void;onSaved:()=>void}){const[input,setInput]=useState(()=>defaultDcf(summary)),[preview,setPreview]=useState<DcfResult|undefined>(summary.dcf??undefined),[error,setError]=useState(""),[expanded,setExpanded]=useState(false);async function calculate(){try{setPreview(await appBridge.previewDcf(profileId,input));setError("");}catch(reason){setError(reason instanceof Error?reason.message:"计算失败");}}async function save(){try{await appBridge.saveDcf(profileId,input);onSaved();}catch(reason){setError(reason instanceof Error?reason.message:"保存失败");}}return <Modal wide title="DCF Model — Bear / Base / Bull" onClose={onClose}><div className="dcf-settings"><div className="common-inputs"><label>Starting Revenue<input type="number" value={input.startingRevenue} onChange={(e)=>setInput({...input,startingRevenue:e.target.value})}/></label><label>Starting Net Margin<input type="number" step="0.001" value={input.startingNetMargin} onChange={(e)=>setInput({...input,startingNetMargin:e.target.value})}/></label><label>Diluted Shares<input type="number" value={input.dilutedShares} onChange={(e)=>setInput({...input,dilutedShares:e.target.value})}/></label><label>Forecast Years<input type="number" min="1" max="20" value={input.forecastYears} onChange={(e)=>setInput({...input,forecastYears:Number(e.target.value)})}/></label></div><table className="assumption-table"><thead><tr><th>DCF Assumptions</th><th>Bear</th><th>Base</th><th>Bull</th></tr></thead><tbody>{([['revenueGrowth','Revenue Growth'],['endingNetMargin','Ending Net Margin'],['cashConversion','Cash Conversion'],['discountRate','Discount Rate'],['exitPe','Exit P/E']] as const).map(([key,label])=><tr key={key}><th>{label}</th>{(['bear','base','bull'] as const).map((scenario)=><td key={scenario}><input type="number" step="0.001" value={input[scenario][key]} onChange={(e)=>setInput({...input,[scenario]:{...input[scenario],[key]:e.target.value}})}/></td>)}</tr>)}</tbody></table></div>{preview&&<><FinancialChart years={preview.base.projection.map((row)=>row.year)} series={[{label:"Revenue",values:preview.base.projection.map((row)=>Number(row.revenue))},{label:"FCFE Proxy",values:preview.base.projection.map((row)=>Number(row.fcfeProxy))}]} /><div className="result-strip"><ValueCard title="PV Forecast FCFE" value={hkd(preview.base.pvForecastFcfe)} detail="Base case"/><ValueCard title="PV Terminal Value" value={hkd(preview.base.pvTerminalValue)} detail={`${pct(Number(preview.base.terminalValueShare)*100)} of value`}/><ValueCard title="Equity Value" value={hkd(preview.base.equityValue)} detail="Present value"/><ValueCard title="DCF / Share" value={hkd(preview.base.valuePerShare)} detail="Base case"/></div><button className="text-button" onClick={()=>setExpanded(!expanded)}>{expanded?'Hide':'Show'} annual calculation</button>{expanded&&<table className="data-table compact"><thead><tr><th>Year</th><th>Revenue</th><th>Net Margin</th><th>Net Income</th><th>FCFE Proxy</th><th>Discounted FCFE</th></tr></thead><tbody>{preview.base.projection.map((row)=><tr key={row.year}><td>{row.year}</td><td>{Number(row.revenue).toLocaleString()}</td><td>{pct(Number(row.netMargin)*100)}</td><td>{Number(row.netIncome).toLocaleString()}</td><td>{Number(row.fcfeProxy).toLocaleString()}</td><td>{Number(row.discountedFcfe).toLocaleString()}</td></tr>)}</tbody></table>}</>}{error&&<p className="form-error">{error}</p>}<div className="modal-actions"><button onClick={onClose}>Cancel</button><button onClick={()=>void calculate()}>Preview</button><button className="primary" onClick={()=>void save()}>Save</button></div></Modal>}
+function MetricRow({ label, values }: { label: string; values: string[] }) {
+  return (
+    <tr>
+      <th>{label}</th>
+      {values.map((value, index) => (
+        <td key={index}>
+          {value === "—" || value.includes("%")
+            ? value
+            : Number(value).toLocaleString()}
+        </td>
+      ))}
+    </tr>
+  );
+}
+function FinancialForm({
+  profileId,
+  instrumentId,
+  onClose,
+  onSaved,
+}: {
+  profileId: string;
+  instrumentId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<AnnualFinancials>({
+      instrumentId,
+      year: new Date().getFullYear() - 1,
+      currency: "HKD",
+      revenue: "",
+      netIncome: "",
+      cash: "",
+      debt: "",
+      equity: "",
+      operatingCashFlow: "",
+      capex: "",
+      sourceUrl: "",
+      updatedAt: new Date().toISOString(),
+    }),
+    [error, setError] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    try {
+      await appBridge.saveAnnualFinancials(profileId, {
+        ...form,
+        updatedAt: new Date().toISOString(),
+      });
+      onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存失败");
+    }
+  }
+  return (
+    <Modal title="Add / Edit Annual Financials" onClose={onClose}>
+      <form className="form-grid" onSubmit={(e) => void submit(e)}>
+        {(
+          [
+            ["year", "Year"],
+            ["revenue", "Revenue"],
+            ["netIncome", "Net Income"],
+            ["cash", "Cash"],
+            ["debt", "Debt"],
+            ["equity", "Equity"],
+            ["operatingCashFlow", "Operating Cash Flow"],
+            ["capex", "Capex"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key}>
+            {label}
+            <input
+              type="number"
+              step="any"
+              value={form[key]}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  [key]:
+                    key === "year" ? Number(e.target.value) : e.target.value,
+                })
+              }
+              required
+            />
+          </label>
+        ))}
+        <label className="wide">
+          Source URL
+          <input
+            type="url"
+            value={form.sourceUrl}
+            onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+          />
+        </label>
+        {error && <p className="form-error wide">{error}</p>}
+        <div className="modal-actions wide">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary">Save Year</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
-function RelativeTab({profileId,summary,onChanged}:{profileId:string;summary:InstrumentSummary;onChanged:()=>Promise<void>}){const[scenario,setScenario]=useState<"bear"|"base"|"bull">("base"),[open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");const result=summary.relative,current=Number(summary.price?.price),selected=Number(result?.[scenario]),upside=selected>0&&current>0?(selected-current)/current*100:NaN;async function refresh(){setBusy(true);try{await appBridge.refreshRelativeData(profileId,summary.instrument.instrumentId);await onChanged();setError("");}catch(reason){setError(reason instanceof Error?reason.message:"刷新失败，已保留缓存");}finally{setBusy(false);}}return <section className="analysis-page"><div className="analysis-toolbar"><div className="valuation-copy"><p className="eyebrow">RELATIVE VALUE</p><h2>{selected>0?`${scenario[0].toUpperCase()+scenario.slice(1)} Case Relative Value is ${hkd(String(selected))}.`:"Relative valuation has not been saved."}</h2><p>{Number.isFinite(upside)?`Compared with current price ${hkd(String(current))}, potential is ${pct(upside)}.`:"Refresh valuation data, then enter normalized per-share fundamentals."}</p></div><button className="primary" disabled={busy} onClick={()=>void refresh()}><RefreshCw className={busy?'spin':''}/> Refresh Valuation Data</button></div>{error&&<div className="notice">{error}</div>}<div className="key-assumptions"><strong>Key observations</strong><p>• Current P/E {result?.input.pe.current?`${Number(result.input.pe.current).toFixed(1)}x`:"—"} vs 3Y median {result?.input.pe.threeYearMedian?`${Number(result.input.pe.threeYearMedian).toFixed(1)}x`:"—"}</p><p>• Current P/CF {result?.input.pcf.current?`${Number(result.input.pcf.current).toFixed(1)}x`:"—"} vs peer median {result?.input.pcf.peerMedian?`${Number(result.input.pcf.peerMedian).toFixed(1)}x`:"—"}</p></div><button className="outline align-right" onClick={()=>setOpen(true)}>View Calculation</button><ScenarioCard type="Relative" current={current} result={result?.base?{bear:Number(result.bear),base:Number(result.base),bull:Number(result.bull)}:undefined} selected={scenario} onSelect={setScenario}/><p className="method-note">{result?.input.source??"AKShare data not fetched"} · {result?.input.fetchedAt?.slice(0,19).replace('T',' ')??"—"} · Confidence {result?.confidence??"—"}</p>{open&&<RelativeModal profileId={profileId} summary={summary} onClose={()=>setOpen(false)} onSaved={async()=>{setOpen(false);await onChanged();}}/>}</section>}
+function DcfTab({
+  profileId,
+  summary,
+  onChanged,
+}: {
+  profileId: string;
+  summary: InstrumentSummary;
+  onChanged: () => Promise<void>;
+}) {
+  const [scenario, setScenario] = useState<"bear" | "base" | "bull">("base"),
+    [open, setOpen] = useState(false);
+  const result = summary.dcf,
+    selected = result?.[scenario],
+    current = Number(summary.price?.price),
+    value = Number(selected?.valuePerShare),
+    margin = value > 0 && current > 0 ? ((value - current) / value) * 100 : NaN;
+  return (
+    <section className="analysis-page">
+      <div className="valuation-copy">
+        <p className="eyebrow">DCF VALUE</p>
+        <h2>
+          {selected
+            ? `${scenario[0].toUpperCase() + scenario.slice(1)} Case DCF Value is ${hkd(selected.valuePerShare)}.`
+            : "DCF model has not been saved."}
+        </h2>
+        <p>
+          {Number.isFinite(margin)
+            ? `Compared with current price ${hkd(String(current))}, the stock appears ${Math.abs(margin).toFixed(0)}% ${margin >= 0 ? "undervalued" : "overvalued"}.`
+            : "Open the calculation to create the first five-year FCFE Proxy model."}
+        </p>
+        <button className="outline" onClick={() => setOpen(true)}>
+          View Calculation
+        </button>
+      </div>
+      <div className="key-assumptions">
+        <strong>Key assumptions</strong>
+        <p>
+          • Revenue Growth{" "}
+          {result
+            ? `${(Number(result.input[scenario].revenueGrowth) * 100).toFixed(1)}%`
+            : "—"}
+        </p>
+        <p>
+          • Net Margin{" "}
+          {result
+            ? `${(Number(result.input.startingNetMargin) * 100).toFixed(1)}% → ${(Number(result.input[scenario].endingNetMargin) * 100).toFixed(1)}%`
+            : "—"}
+        </p>
+      </div>
+      <ScenarioCard
+        type="DCF"
+        current={current}
+        result={
+          result
+            ? {
+                bear: Number(result.bear.valuePerShare),
+                base: Number(result.base.valuePerShare),
+                bull: Number(result.bull.valuePerShare),
+              }
+            : undefined
+        }
+        selected={scenario}
+        onSelect={setScenario}
+      />
+      <p className="method-note">
+        Updated {result?.input.asOf ?? "—"} · FCFE Proxy model · Terminal value
+        share {selected ? pct(Number(selected.terminalValueShare) * 100) : "—"}
+      </p>
+      {open && (
+        <DcfModal
+          profileId={profileId}
+          summary={summary}
+          onClose={() => setOpen(false)}
+          onSaved={async () => {
+            setOpen(false);
+            await onChanged();
+          }}
+        />
+      )}
+    </section>
+  );
+}
 
-function defaultRelative(summary:InstrumentSummary):RelativeInput{return summary.relative?.input??{instrumentId:summary.instrument.instrumentId,normalizedEps:"",normalizedOcfPerShare:"",pe:emptySeries(),pcf:emptySeries(),peers:[],source:"AKShare / Baidu / Eastmoney",fetchedAt:null,asOf:today()};}
-function RelativeModal({profileId,summary,onClose,onSaved}:{profileId:string;summary:InstrumentSummary;onClose:()=>void;onSaved:()=>void}){const[input,setInput]=useState(()=>defaultRelative(summary)),[preview,setPreview]=useState<RelativeResult|undefined>(summary.relative??undefined),[peerSymbols,setPeerSymbols]=useState(input.peers.map((peer)=>peer.symbol).join(", ")),[error,setError]=useState("");function withPeers():RelativeInput{return{...input,peers:peerSymbols.split(',').map((value)=>value.trim()).filter(Boolean).map((symbol)=>input.peers.find((peer)=>peer.symbol===symbol)??{symbol,name:symbol,pe:null,pcf:null,included:true,updatedAt:null})};}async function calculate(){try{setPreview(await appBridge.previewRelativeValuation(profileId,withPeers()));setError("");}catch(reason){setError(reason instanceof Error?reason.message:"计算失败");}}async function save(){try{await appBridge.saveRelativeValuation(profileId,withPeers());onSaved();}catch(reason){setError(reason instanceof Error?reason.message:"保存失败");}}return <Modal wide title="Relative Valuation — P/E and P/CF" onClose={onClose}><div className="common-inputs"><label>Normalized EPS<input type="number" step="0.001" value={input.normalizedEps} onChange={(e)=>setInput({...input,normalizedEps:e.target.value})}/></label><label>Normalized OCF / Share<input type="number" step="0.001" value={input.normalizedOcfPerShare} onChange={(e)=>setInput({...input,normalizedOcfPerShare:e.target.value})}/></label><label className="wide">Peer HK symbols, comma separated<input value={peerSymbols} placeholder="09988, 00700" onChange={(e)=>setPeerSymbols(e.target.value)}/></label></div><MultipleTable title="P/E Valuation Scenarios" series={input.pe} implied={preview?.impliedPrices.filter((item)=>item.metric==='P/E')??[]} /><MultipleTable title="P/CF Valuation Scenarios" series={input.pcf} implied={preview?.impliedPrices.filter((item)=>item.metric==='P/CF')??[]} />{input.peers.length>0&&<table className="data-table compact"><thead><tr><th>Peer</th><th>P/E</th><th>P/CF</th><th>Updated</th></tr></thead><tbody>{input.peers.map((peer)=><tr key={peer.symbol}><td>{peer.name} · {peer.symbol}</td><td>{peer.pe??"—"}</td><td>{peer.pcf??"—"}</td><td>{peer.updatedAt?.slice(0,10)??"—"}</td></tr>)}</tbody></table>}{preview&&<div className="result-strip"><ValueCard title="Bear" value={hkd(preview.bear)} detail="Base × 80%"/><ValueCard title="Base" value={hkd(preview.base)} detail="All references median"/><ValueCard title="Bull" value={hkd(preview.bull)} detail="Base × 120%"/><ValueCard title="Confidence" value={preview.confidence} detail={`${preview.impliedPrices.length} valid references`}/></div>}{error&&<p className="form-error">{error}</p>}<div className="modal-actions"><button onClick={onClose}>Cancel</button><button onClick={()=>void calculate()}>Preview</button><button className="primary" onClick={()=>void save()}>Save</button></div></Modal>}
+function defaultDcf(summary: InstrumentSummary): DcfInput {
+  const latest = [...summary.financials].sort((a, b) => b.year - a.year)[0],
+    revenue = latest?.revenue ?? "",
+    margin =
+      latest && Number(latest.revenue)
+        ? String(Number(latest.netIncome) / Number(latest.revenue))
+        : "0.058";
+  const scenario = (
+    growth: string,
+    end: string,
+    discount: string,
+    pe: string,
+  ): DcfScenarioInput => ({
+    revenueGrowth: growth,
+    endingNetMargin: end,
+    cashConversion: "0.9",
+    discountRate: discount,
+    exitPe: pe,
+  });
+  return (
+    summary.dcf?.input ?? {
+      instrumentId: summary.instrument.instrumentId,
+      startingRevenue: revenue,
+      startingNetMargin: margin,
+      dilutedShares: "",
+      forecastYears: 5,
+      bear: scenario("0.04", "0.06", "0.11", "12"),
+      base: scenario("0.09", "0.082", "0.09", "17"),
+      bull: scenario("0.14", "0.10", "0.08", "22"),
+      asOf: today(),
+    }
+  );
+}
+function DcfModal({
+  profileId,
+  summary,
+  onClose,
+  onSaved,
+}: {
+  profileId: string;
+  summary: InstrumentSummary;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [input, setInput] = useState(() => defaultDcf(summary)),
+    [preview, setPreview] = useState<DcfResult | undefined>(
+      summary.dcf ?? undefined,
+    ),
+    [error, setError] = useState(""),
+    [expanded, setExpanded] = useState(false);
+  async function calculate() {
+    try {
+      setPreview(await appBridge.previewDcf(profileId, input));
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "计算失败");
+    }
+  }
+  async function save() {
+    try {
+      await appBridge.saveDcf(profileId, input);
+      onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存失败");
+    }
+  }
+  return (
+    <Modal wide title="DCF Model — Bear / Base / Bull" onClose={onClose}>
+      <div className="dcf-settings">
+        <div className="common-inputs">
+          <label>
+            Valuation Date
+            <input
+              type="date"
+              value={input.asOf}
+              onChange={(e) => setInput({ ...input, asOf: e.target.value })}
+            />
+          </label>
+          <label>
+            Starting Revenue
+            <input
+              type="number"
+              value={input.startingRevenue}
+              onChange={(e) =>
+                setInput({ ...input, startingRevenue: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Starting Net Margin
+            <input
+              type="number"
+              step="0.001"
+              value={input.startingNetMargin}
+              onChange={(e) =>
+                setInput({ ...input, startingNetMargin: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Diluted Shares
+            <input
+              type="number"
+              value={input.dilutedShares}
+              onChange={(e) =>
+                setInput({ ...input, dilutedShares: e.target.value })
+              }
+            />
+          </label>
+          <label>
+            Forecast Years
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={input.forecastYears}
+              onChange={(e) =>
+                setInput({ ...input, forecastYears: Number(e.target.value) })
+              }
+            />
+          </label>
+        </div>
+        <table className="assumption-table">
+          <thead>
+            <tr>
+              <th>DCF Assumptions</th>
+              <th>Bear</th>
+              <th>Base</th>
+              <th>Bull</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(
+              [
+                ["revenueGrowth", "Revenue Growth"],
+                ["endingNetMargin", "Ending Net Margin"],
+                ["cashConversion", "Cash Conversion"],
+                ["discountRate", "Discount Rate"],
+                ["exitPe", "Exit P/E"],
+              ] as const
+            ).map(([key, label]) => (
+              <tr key={key}>
+                <th>{label}</th>
+                {(["bear", "base", "bull"] as const).map((scenario) => (
+                  <td key={scenario}>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={input[scenario][key]}
+                      onChange={(e) =>
+                        setInput({
+                          ...input,
+                          [scenario]: {
+                            ...input[scenario],
+                            [key]: e.target.value,
+                          },
+                        })
+                      }
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {preview && (
+        <>
+          <FinancialChart
+            years={preview.base.projection.map((row) => row.year)}
+            series={[
+              {
+                label: "Revenue",
+                values: preview.base.projection.map((row) =>
+                  Number(row.revenue),
+                ),
+              },
+              {
+                label: "FCFE Proxy",
+                values: preview.base.projection.map((row) =>
+                  Number(row.fcfeProxy),
+                ),
+              },
+            ]}
+          />
+          <div className="result-strip">
+            <ValueCard
+              title="PV Forecast FCFE"
+              value={hkd(preview.base.pvForecastFcfe)}
+              detail="Base case"
+            />
+            <ValueCard
+              title="PV Terminal Value"
+              value={hkd(preview.base.pvTerminalValue)}
+              detail={`${pct(Number(preview.base.terminalValueShare) * 100)} of value`}
+            />
+            <ValueCard
+              title="Equity Value"
+              value={hkd(preview.base.equityValue)}
+              detail="Present value"
+            />
+            <ValueCard
+              title="DCF / Share"
+              value={hkd(preview.base.valuePerShare)}
+              detail="Base case"
+            />
+          </div>
+          <button
+            className="text-button"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "Hide" : "Show"} annual calculation
+          </button>
+          {expanded && (
+            <table className="data-table compact">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Revenue</th>
+                  <th>Net Margin</th>
+                  <th>Net Income</th>
+                  <th>FCFE Proxy</th>
+                  <th>Discounted FCFE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.base.projection.map((row) => (
+                  <tr key={row.year}>
+                    <td>{row.year}</td>
+                    <td>{Number(row.revenue).toLocaleString()}</td>
+                    <td>{pct(Number(row.netMargin) * 100)}</td>
+                    <td>{Number(row.netIncome).toLocaleString()}</td>
+                    <td>{Number(row.fcfeProxy).toLocaleString()}</td>
+                    <td>{Number(row.discountedFcfe).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+      {error && <p className="form-error">{error}</p>}
+      <div className="modal-actions">
+        <button onClick={onClose}>Cancel</button>
+        <button onClick={() => void calculate()}>Preview</button>
+        <button className="primary" onClick={() => void save()}>
+          Save
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
-function MultipleTable({title,series,implied}:{title:string;series:RelativeInput['pe'];implied:RelativeResult['impliedPrices']}){const price=(reference:string)=>implied.find((item)=>item.reference===reference)?.price;return <section className="multiple-section"><h3>{title}</h3><div className="stats-line"><span>Current <strong>{series.current?`${Number(series.current).toFixed(1)}x`:"—"}</strong></span><span>Observations <strong>{series.validObservations}</strong></span><span>10–90% <strong>{series.percentile10??"—"}–{series.percentile90??"—"}</strong></span></div><table className="data-table compact"><thead><tr><th>Reference</th><th>Multiple</th><th>Implied Price</th></tr></thead><tbody><tr><td>Current</td><td>{series.current??"—"}</td><td>Comparison only</td></tr>{([['3Y Median',series.threeYearMedian],['5Y Median',series.fiveYearMedian],['Peer Median',series.peerMedian]] as const).map(([label,value])=><tr key={label}><td>{label}</td><td>{value??"—"}</td><td>{hkd(price(label))}</td></tr>)}</tbody></table></section>}
+function RelativeTab({
+  profileId,
+  summary,
+  onChanged,
+}: {
+  profileId: string;
+  summary: InstrumentSummary;
+  onChanged: () => Promise<void>;
+}) {
+  const [scenario, setScenario] = useState<"bear" | "base" | "bull">("base"),
+    [open, setOpen] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const result = summary.relative,
+    current = Number(summary.price?.price),
+    selected = Number(result?.[scenario]),
+    upside =
+      selected > 0 && current > 0
+        ? ((selected - current) / current) * 100
+        : NaN;
+  async function refresh() {
+    setBusy(true);
+    try {
+      await appBridge.refreshRelativeData(
+        profileId,
+        summary.instrument.instrumentId,
+      );
+      await onChanged();
+      setError("");
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "刷新失败，已保留缓存",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="analysis-page">
+      <div className="analysis-toolbar">
+        <div className="valuation-copy">
+          <p className="eyebrow">RELATIVE VALUE</p>
+          <h2>
+            {selected > 0
+              ? `${scenario[0].toUpperCase() + scenario.slice(1)} Case Relative Value is ${hkd(String(selected))}.`
+              : "Relative valuation has not been saved."}
+          </h2>
+          <p>
+            {Number.isFinite(upside)
+              ? `Compared with current price ${hkd(String(current))}, potential is ${pct(upside)}.`
+              : "Refresh valuation data, then enter normalized per-share fundamentals."}
+          </p>
+        </div>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => void refresh()}
+        >
+          <RefreshCw className={busy ? "spin" : ""} /> Refresh Valuation Data
+        </button>
+      </div>
+      {error && <div className="notice">{error}</div>}
+      <div className="key-assumptions">
+        <strong>Key observations</strong>
+        <p>
+          • Current P/E{" "}
+          {result?.input.pe.current
+            ? `${Number(result.input.pe.current).toFixed(1)}x`
+            : "—"}{" "}
+          vs 3Y median{" "}
+          {result?.input.pe.threeYearMedian
+            ? `${Number(result.input.pe.threeYearMedian).toFixed(1)}x`
+            : "—"}
+        </p>
+        <p>
+          • Current P/CF{" "}
+          {result?.input.pcf.current
+            ? `${Number(result.input.pcf.current).toFixed(1)}x`
+            : "—"}{" "}
+          vs peer median{" "}
+          {result?.input.pcf.peerMedian
+            ? `${Number(result.input.pcf.peerMedian).toFixed(1)}x`
+            : "—"}
+        </p>
+      </div>
+      <button className="outline align-right" onClick={() => setOpen(true)}>
+        View Calculation
+      </button>
+      <ScenarioCard
+        type="Relative"
+        current={current}
+        result={
+          result?.base
+            ? {
+                bear: Number(result.bear),
+                base: Number(result.base),
+                bull: Number(result.bull),
+              }
+            : undefined
+        }
+        selected={scenario}
+        onSelect={setScenario}
+      />
+      <p className="method-note">
+        {result?.input.source ?? "AKShare data not fetched"} ·{" "}
+        {result?.input.fetchedAt?.slice(0, 19).replace("T", " ") ?? "—"} ·
+        Confidence {result?.confidence ?? "—"}
+      </p>
+      {open && (
+        <RelativeModal
+          profileId={profileId}
+          summary={summary}
+          onClose={() => setOpen(false)}
+          onSaved={async () => {
+            setOpen(false);
+            await onChanged();
+          }}
+        />
+      )}
+    </section>
+  );
+}
 
-function ScenarioCard({type,current,result,selected,onSelect}:{type:string;current:number;result?:{bear:number;base:number;bull:number};selected:"bear"|"base"|"bull";onSelect:(value:"bear"|"base"|"bull")=>void}){return <div className="scenario-card"><h3>{type} Value</h3><div className="scenario-values">{(['bear','base','bull'] as const).map((key)=><button className={selected===key?'active':''} onClick={()=>onSelect(key)} key={key}><small>{key[0].toUpperCase()+key.slice(1)} Case</small><strong>{hkd(result?String(result[key]):undefined)}</strong></button>)}</div><ValuationRange label={`${type} valuation position`} current={current} bear={result?.bear??NaN} base={result?.base??NaN} bull={result?.bull??NaN}/></div>}
-function ValuationRange({label,current,bear,base,bull}:{label:string;current:number;bear:number;base:number;bull:number}){const values=[current,bear,base,bull].filter(Number.isFinite);if(values.length<2)return <div className="range-empty">完成估值后显示价格区间图。</div>;const min=Math.min(...values)*.8,max=Math.max(...values)*1.12,pos=(value:number)=>`${Math.max(0,Math.min(100,(value-min)/(max-min)*100))}%`;return <div className="valuation-range" aria-label={label}><div className="range-line"/>{Number.isFinite(bear)&&<span className="range-marker bear" style={{left:pos(bear)}}><i/>Bear<br/>{hkd(String(bear))}</span>}{Number.isFinite(base)&&<span className="range-marker base" style={{left:pos(base)}}><i/>Base<br/>{hkd(String(base))}</span>}{Number.isFinite(bull)&&<span className="range-marker bull" style={{left:pos(bull)}}><i/>Bull<br/>{hkd(String(bull))}</span>}<span className="range-marker current" style={{left:pos(current)}}><i/>Current<br/>{hkd(String(current))}</span></div>}
-function Sparkline({values}:{values:number[]}){const finite=values.filter(Number.isFinite);if(finite.length<2)return <span className="no-chart">No trend</span>;const min=Math.min(...finite),max=Math.max(...finite),range=max-min||1,points=finite.map((value,index)=>`${index/(finite.length-1)*150},${38-(value-min)/range*32}`).join(' ');return <svg className="sparkline" viewBox="0 0 150 42" role="img" aria-label="Price trend"><polyline points={points}/></svg>}
-function FinancialChart({years,series}:{years:(number|string)[];series:Array<{label:string;values:number[]}>}){if(!years.length)return <div className="chart-empty">添加年度数据后显示趋势图。</div>;const all=series.flatMap((item)=>item.values).filter(Number.isFinite),min=Math.min(0,...all),max=Math.max(...all),range=max-min||1,colors=['#57c7b6','#6f92b5'];return <div className="financial-chart"><svg viewBox="0 0 720 240" role="img" aria-label="Financial trend">{[0,1,2,3,4].map((line)=><line key={line} x1="44" x2="700" y1={25+line*42} y2={25+line*42}/>) }{series.map((item,sIndex)=>{const points=item.values.map((value,index)=>`${44+(index/Math.max(1,years.length-1))*656},${193-(value-min)/range*160}`).join(' ');return <polyline key={item.label} points={points} style={{stroke:colors[sIndex%colors.length]}}/>})}</svg><div className="chart-legend">{series.map((item,index)=><span key={item.label}><i style={{background:colors[index%colors.length]}}/>{item.label}</span>)}</div></div>}
-function Modal({title,onClose,wide=false,children}:{title:string;onClose:()=>void;wide?:boolean;children:ReactNode}){return <div className="modal-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}><section className={`modal ${wide?'wide':''}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button className="icon-button" aria-label="关闭" onClick={onClose}><X/></button></header><div className="modal-body">{children}</div></section></div>}
+function defaultRelative(summary: InstrumentSummary): RelativeInput {
+  return (
+    summary.relative?.input ?? {
+      instrumentId: summary.instrument.instrumentId,
+      normalizedEps: "",
+      normalizedOcfPerShare: "",
+      pe: emptySeries(),
+      pcf: emptySeries(),
+      peers: [],
+      source: "AKShare / Baidu / Eastmoney",
+      fetchedAt: null,
+      asOf: today(),
+    }
+  );
+}
+function RelativeModal({
+  profileId,
+  summary,
+  onClose,
+  onSaved,
+}: {
+  profileId: string;
+  summary: InstrumentSummary;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [input, setInput] = useState(() => defaultRelative(summary)),
+    [preview, setPreview] = useState<RelativeResult | undefined>(
+      summary.relative ?? undefined,
+    ),
+    [peerSymbols, setPeerSymbols] = useState(
+      input.peers.map((peer) => peer.symbol).join(", "),
+    ),
+    [error, setError] = useState("");
+  function withPeers(): RelativeInput {
+    return {
+      ...input,
+      peers: peerSymbols
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map(
+          (symbol) =>
+            input.peers.find((peer) => peer.symbol === symbol) ?? {
+              symbol,
+              name: symbol,
+              pe: null,
+              pcf: null,
+              included: true,
+              updatedAt: null,
+            },
+        ),
+    };
+  }
+  async function calculate() {
+    try {
+      setPreview(
+        await appBridge.previewRelativeValuation(profileId, withPeers()),
+      );
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "计算失败");
+    }
+  }
+  async function save() {
+    try {
+      await appBridge.saveRelativeValuation(profileId, withPeers());
+      onSaved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存失败");
+    }
+  }
+  return (
+    <Modal wide title="Relative Valuation — P/E and P/CF" onClose={onClose}>
+      <div className="common-inputs">
+        <label>
+          Normalized EPS
+          <input
+            type="number"
+            step="0.001"
+            value={input.normalizedEps}
+            onChange={(e) =>
+              setInput({ ...input, normalizedEps: e.target.value })
+            }
+          />
+        </label>
+        <label>
+          Normalized OCF / Share
+          <input
+            type="number"
+            step="0.001"
+            value={input.normalizedOcfPerShare}
+            onChange={(e) =>
+              setInput({ ...input, normalizedOcfPerShare: e.target.value })
+            }
+          />
+        </label>
+        <label className="wide">
+          Peer HK symbols, comma separated
+          <input
+            value={peerSymbols}
+            placeholder="09988, 00700"
+            onChange={(e) => setPeerSymbols(e.target.value)}
+          />
+        </label>
+      </div>
+      <MultipleTable
+        title="P/E Valuation Scenarios"
+        series={input.pe}
+        implied={
+          preview?.impliedPrices.filter((item) => item.metric === "P/E") ?? []
+        }
+      />
+      <MultipleTable
+        title="P/CF Valuation Scenarios"
+        series={input.pcf}
+        implied={
+          preview?.impliedPrices.filter((item) => item.metric === "P/CF") ?? []
+        }
+      />
+      {input.peers.length > 0 && (
+        <table className="data-table compact">
+          <thead>
+            <tr>
+              <th>Peer</th>
+              <th>P/E</th>
+              <th>P/CF</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {input.peers.map((peer) => (
+              <tr key={peer.symbol}>
+                <td>
+                  {peer.name} · {peer.symbol}
+                </td>
+                <td>{peer.pe ?? "—"}</td>
+                <td>{peer.pcf ?? "—"}</td>
+                <td>{peer.updatedAt?.slice(0, 10) ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {preview && (
+        <div className="result-strip">
+          <ValueCard
+            title="Bear"
+            value={hkd(preview.bear)}
+            detail="Base × 80%"
+          />
+          <ValueCard
+            title="Base"
+            value={hkd(preview.base)}
+            detail="All references median"
+          />
+          <ValueCard
+            title="Bull"
+            value={hkd(preview.bull)}
+            detail="Base × 120%"
+          />
+          <ValueCard
+            title="Confidence"
+            value={preview.confidence}
+            detail={`${preview.impliedPrices.length} valid references`}
+          />
+        </div>
+      )}
+      {error && <p className="form-error">{error}</p>}
+      <div className="modal-actions">
+        <button onClick={onClose}>Cancel</button>
+        <button onClick={() => void calculate()}>Preview</button>
+        <button className="primary" onClick={() => void save()}>
+          Save
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function MultipleTable({
+  title,
+  series,
+  implied,
+}: {
+  title: string;
+  series: RelativeInput["pe"];
+  implied: RelativeResult["impliedPrices"];
+}) {
+  const price = (reference: string) =>
+    implied.find((item) => item.reference === reference)?.price;
+  return (
+    <section className="multiple-section">
+      <h3>{title}</h3>
+      <div className="stats-line">
+        <span>
+          Current{" "}
+          <strong>
+            {series.current ? `${Number(series.current).toFixed(1)}x` : "—"}
+          </strong>
+        </span>
+        <span>
+          Observations <strong>{series.validObservations}</strong>
+        </span>
+        <span>
+          10–90%{" "}
+          <strong>
+            {series.percentile10 ?? "—"}–{series.percentile90 ?? "—"}
+          </strong>
+        </span>
+      </div>
+      <table className="data-table compact">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Multiple</th>
+            <th>Implied Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Current</td>
+            <td>{series.current ?? "—"}</td>
+            <td>Comparison only</td>
+          </tr>
+          {(
+            [
+              ["3Y Median", series.threeYearMedian],
+              ["5Y Median", series.fiveYearMedian],
+              ["Peer Median", series.peerMedian],
+            ] as const
+          ).map(([label, value]) => (
+            <tr key={label}>
+              <td>{label}</td>
+              <td>{value ?? "—"}</td>
+              <td>{hkd(price(label))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function ScenarioCard({
+  type,
+  current,
+  result,
+  selected,
+  onSelect,
+}: {
+  type: string;
+  current: number;
+  result?: { bear: number; base: number; bull: number };
+  selected: "bear" | "base" | "bull";
+  onSelect: (value: "bear" | "base" | "bull") => void;
+}) {
+  return (
+    <div className="scenario-card">
+      <h3>{type} Value</h3>
+      <div className="scenario-values">
+        {(["bear", "base", "bull"] as const).map((key) => (
+          <button
+            className={selected === key ? "active" : ""}
+            onClick={() => onSelect(key)}
+            key={key}
+          >
+            <small>{key[0].toUpperCase() + key.slice(1)} Case</small>
+            <strong>{hkd(result ? String(result[key]) : undefined)}</strong>
+          </button>
+        ))}
+      </div>
+      <ValuationRange
+        label={`${type} valuation position`}
+        current={current}
+        bear={result?.bear ?? NaN}
+        base={result?.base ?? NaN}
+        bull={result?.bull ?? NaN}
+      />
+    </div>
+  );
+}
+function ValuationRange({
+  label,
+  current,
+  bear,
+  base,
+  bull,
+}: {
+  label: string;
+  current: number;
+  bear: number;
+  base: number;
+  bull: number;
+}) {
+  const values = [current, bear, base, bull].filter(Number.isFinite);
+  if (values.length < 2)
+    return <div className="range-empty">完成估值后显示价格区间图。</div>;
+  const min = Math.min(...values) * 0.8,
+    max = Math.max(...values) * 1.12,
+    pos = (value: number) =>
+      `${Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))}%`;
+  return (
+    <div className="valuation-range" aria-label={label}>
+      <div className="range-line" />
+      {Number.isFinite(bear) && (
+        <span className="range-marker bear" style={{ left: pos(bear) }}>
+          <i />
+          Bear
+          <br />
+          {hkd(String(bear))}
+        </span>
+      )}
+      {Number.isFinite(base) && (
+        <span className="range-marker base" style={{ left: pos(base) }}>
+          <i />
+          Base
+          <br />
+          {hkd(String(base))}
+        </span>
+      )}
+      {Number.isFinite(bull) && (
+        <span className="range-marker bull" style={{ left: pos(bull) }}>
+          <i />
+          Bull
+          <br />
+          {hkd(String(bull))}
+        </span>
+      )}
+      <span className="range-marker current" style={{ left: pos(current) }}>
+        <i />
+        Current
+        <br />
+        {hkd(String(current))}
+      </span>
+    </div>
+  );
+}
+function Sparkline({ values }: { values: number[] }) {
+  const finite = values.filter(Number.isFinite);
+  if (finite.length < 2) return <span className="no-chart">No trend</span>;
+  const min = Math.min(...finite),
+    max = Math.max(...finite),
+    range = max - min || 1,
+    points = finite
+      .map(
+        (value, index) =>
+          `${(index / (finite.length - 1)) * 150},${38 - ((value - min) / range) * 32}`,
+      )
+      .join(" ");
+  return (
+    <svg
+      className="sparkline"
+      viewBox="0 0 150 42"
+      role="img"
+      aria-label="Price trend"
+    >
+      <polyline points={points} />
+    </svg>
+  );
+}
+function FinancialChart({
+  years,
+  series,
+}: {
+  years: (number | string)[];
+  series: Array<{ label: string; values: number[] }>;
+}) {
+  if (!years.length)
+    return <div className="chart-empty">添加年度数据后显示趋势图。</div>;
+  const all = series.flatMap((item) => item.values).filter(Number.isFinite),
+    min = Math.min(0, ...all),
+    max = Math.max(...all),
+    range = max - min || 1,
+    colors = ["#57c7b6", "#6f92b5"];
+  return (
+    <div className="financial-chart">
+      <svg viewBox="0 0 720 240" role="img" aria-label="Financial trend">
+        {[0, 1, 2, 3, 4].map((line) => (
+          <line
+            key={line}
+            x1="44"
+            x2="700"
+            y1={25 + line * 42}
+            y2={25 + line * 42}
+          />
+        ))}
+        {series.map((item, sIndex) => {
+          const points = item.values
+            .map(
+              (value, index) =>
+                `${44 + (index / Math.max(1, years.length - 1)) * 656},${193 - ((value - min) / range) * 160}`,
+            )
+            .join(" ");
+          return (
+            <polyline
+              key={item.label}
+              points={points}
+              style={{ stroke: colors[sIndex % colors.length] }}
+            />
+          );
+        })}
+      </svg>
+      <div className="chart-legend">
+        {series.map((item, index) => (
+          <span key={item.label}>
+            <i style={{ background: colors[index % colors.length] }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+function Modal({
+  title,
+  onClose,
+  wide = false,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className={`modal ${wide ? "wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <header>
+          <h2>{title}</h2>
+          <button className="icon-button" aria-label="关闭" onClick={onClose}>
+            <X />
+          </button>
+        </header>
+        <div className="modal-body">{children}</div>
+      </section>
+    </div>
+  );
+}

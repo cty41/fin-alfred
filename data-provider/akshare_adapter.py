@@ -99,7 +99,7 @@ def _call_akshare(function: Any, *args: Any, **kwargs: Any):
 
 
 def _price_history(ak: Any, symbol: str) -> list[dict[str, Any]]:
-    cutoff = dt.date.today() - dt.timedelta(days=120)
+    cutoff = dt.date.today() - dt.timedelta(days=365 * 5)
     source = "AKShare / Eastmoney"
     try:
         frame = _call_akshare(

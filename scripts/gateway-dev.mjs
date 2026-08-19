@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const children = [];
 let stopping = false;
@@ -28,6 +28,14 @@ const npmCli = process.env.npm_execpath;
 const cargoCandidate = join(process.env.USERPROFILE ?? "", ".cargo", "bin", "cargo.exe");
 const cargo = process.platform === "win32" && existsSync(cargoCandidate) ? cargoCandidate : "cargo";
 const projectRoot = process.cwd();
+if (process.env.FIN_ALFRED_RESET_TEST_DATA === "1") {
+  const testDataDirectory = process.env.FIN_ALFRED_TEST_DATA_DIR;
+  const expectedDirectory = resolve(projectRoot, "target", "gateway-e2e-data");
+  if (!testDataDirectory || resolve(projectRoot, testDataDirectory) !== expectedDirectory) {
+    throw new Error("FIN_ALFRED_RESET_TEST_DATA 只允许清理 target/gateway-e2e-data。");
+  }
+  rmSync(expectedDirectory, { recursive: true, force: true });
+}
 process.env.UV_DEFAULT_INDEX = "https://pypi.org/simple";
 const uvCheck = spawnSync("uv", ["sync", "--frozen", "--project", "data-provider"], { stdio: "inherit" });
 if (uvCheck.status !== 0) {

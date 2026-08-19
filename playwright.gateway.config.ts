@@ -13,6 +13,7 @@ export default defineConfig({
       ...process.env,
       FIN_ALFRED_BOOTSTRAP_TOKEN: "gateway-e2e-bootstrap",
       FIN_ALFRED_NO_OPEN: "1",
+      FIN_ALFRED_RESET_TEST_DATA: "1",
       FIN_ALFRED_TEST_DATA_DIR: "target/gateway-e2e-data",
       FIN_ALFRED_TEST_ADDRESS: "127.0.0.1:43118",
       FIN_ALFRED_GATEWAY_URL: "http://127.0.0.1:43118",

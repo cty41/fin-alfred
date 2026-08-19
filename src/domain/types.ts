@@ -266,9 +266,11 @@ export interface RelativeInput {
 }
 export interface ImpliedPrice { metric: string; reference: string; multiple: string; price: string }
 export interface RelativeResult { input: RelativeInput; bear?: string | null; base?: string | null; bull?: string | null; confidence: string; impliedPrices: ImpliedPrice[]; contentHash: string }
+export interface ValuationHistorySnapshot { asOf: string; reportPeriod: string; marketPrice: string; dcf: DcfResult; sourceUrl: string; createdAt: string }
 export interface InstrumentSummary {
   instrument: InstrumentProfile; price?: PriceSnapshot | null; financials: AnnualFinancials[];
   dcf?: DcfResult | null; relative?: RelativeResult | null;
+  valuationHistory: ValuationHistorySnapshot[];
   ledger?: { profileId: string; instrumentId: string; quantity: string; cash: string; currency: string } | null;
   stageOneCompleted: boolean;
 }

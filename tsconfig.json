@@ -5,6 +5,7 @@
     { "path": "packages/provider-akshare" },
     { "path": "packages/provider-llm" },
     { "path": "packages/gateway" },
-    { "path": "packages/cli" }
+    { "path": "packages/cli" },
+    { "path": "packages/dsh-alfred" }
   ]
 }

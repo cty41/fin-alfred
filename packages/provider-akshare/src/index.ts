@@ -1,6 +1,7 @@
 ﻿import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export interface PriceResult {
   symbol: string;
@@ -19,7 +20,7 @@ export interface AkshareProviderOptions {
 }
 
 function findRepoRoot(): string {
-  let dir = __dirname;
+  let dir = import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url));
   while (dir !== path.dirname(dir)) {
     if (fs.existsSync(path.join(dir, "data-provider", "akshare_adapter.py"))) return dir;
     dir = path.dirname(dir);
@@ -39,10 +40,11 @@ export class AkshareProvider {
     this.timeoutMs = opts?.timeoutMs ?? 30_000;
   }
 
-  private run(action: "prices" | "relative", payload: Record<string, unknown>): Promise<any> {
+  private run(action: "prices" | "relative", payload: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.pythonPath, [this.adapterPath, action, JSON.stringify(payload)], {
         stdio: ["ignore", "pipe", "pipe"],
+        signal,
       });
       let stdout = "";
       let stderr = "";
@@ -71,13 +73,14 @@ export class AkshareProvider {
     });
   }
 
-  async fetchPrices(symbol: string): Promise<PriceResult[]> {
-    const result = await this.run("prices", { symbol });
-    return Array.isArray(result) ? result : [result];
+  async fetchPrices(symbol: string, signal?: AbortSignal): Promise<PriceResult[]> {
+    const result = await this.run("prices", { symbols: [symbol] }, signal);
+    const prices = Array.isArray(result) ? result : result?.prices;
+    return Array.isArray(prices) ? prices : [];
   }
 
-  async fetchRelative(symbol: string): Promise<any> {
-    return this.run("relative", { symbol });
+  async fetchRelative(symbol: string, peers: string[] = [], signal?: AbortSignal): Promise<any> {
+    return this.run("relative", { symbol, peers }, signal);
   }
 }
 

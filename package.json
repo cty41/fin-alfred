@@ -12,11 +12,12 @@
                        "packages/provider-llm",
                        "packages/gateway",
                        "packages/cli",
-                       "packages/ui"
+                       "packages/ui",
+                       "packages/dsh-alfred"
                    ],
     "scripts":  {
-                    "build":  "tsc -b",
-                    "typecheck":  "tsc -b --pretty false",
+                    "build":  "tsc -b && npm run client:build --workspace dsh-alfred",
+                    "typecheck":  "tsc -b --pretty false && npm run client:typecheck --workspace dsh-alfred",
                     "test":  "vitest run",
                     "test:watch":  "vitest",
                     "alfred":  "node packages/cli/dist/main.js",

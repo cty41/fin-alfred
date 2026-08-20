@@ -1,0 +1,4 @@
+# Adds the Alfred research and confirmed-ledger tools to the active DSH profile.
+- insert:
+    - id: dsh-alfred
+      name: dsh-alfred

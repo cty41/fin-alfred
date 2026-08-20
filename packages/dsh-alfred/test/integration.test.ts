@@ -22,6 +22,10 @@ describe('bundled guidance and web registration', () => {
     } as never, config)
     expect(skill).toMatchObject({ name: 'alfred-investment-research', source: 'bundled' })
     expect(skill.content).toContain('Never claim to place a broker order')
+    expect(skill.content).toContain('## valuation-framework.md')
+    expect(skill.content).toContain('For Tencent')
+    expect(skill.content).toContain('## position-strategy.md')
+    expect(skill.content).toContain('Cumulative reduction targets')
     expect(skill.resourceBase.path).toMatch(/alfred-investment-research$/u)
     const injected: any[] = []
     listener?.({ agent: { id: 'a1', session: { header: { agentPreset: 'standard' } }, inject: (message: any) => injected.push(message) } })

@@ -52,6 +52,13 @@ export function apply(ctx: Context, config: AlfredPluginConfig): void {
     execute: async args => JSON.stringify(service.portfolioContext(args.instrumentId)),
   }))
   ctx.tools.register(defineTool({
+    name: 'alfred_financial_statements',
+    description: '查询三只港股的三大财务报表明细（资产负债表、利润表、现金流量表），返回原始科目、标准科目汇总（现金/投资/有息负债/少数股东权益等）及报告期与币种。只读，不执行交易。',
+    parameters: { instrumentId: { type: 'string', required: true, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' }, indicator: { type: 'string', enum: ['报告期', '年度'], description: '报告期返回最新各期（含季度）；年度仅返回年报（12-31）。' } },
+    output: textOutput(),
+    execute: async (args, exec) => JSON.stringify(await service.financialStatements(args.instrumentId, args.indicator ?? '报告期', exec.signal)),
+  }))
+  ctx.tools.register(defineTool({
     name: 'alfred_value_strategy',
     description: '根据已核对的Bear/Base/Bull每股价值、当前价和Base预期IRR生成动态价值策略状态。只计算，不读取或写入账本。',
     parameters: {

@@ -1,4 +1,4 @@
-﻿import { spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -40,7 +40,7 @@ export class AkshareProvider {
     this.timeoutMs = opts?.timeoutMs ?? 30_000;
   }
 
-  private run(action: "prices" | "relative", payload: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+  private run(action: "prices" | "relative" | "financials", payload: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.pythonPath, [this.adapterPath, action, JSON.stringify(payload)], {
         stdio: ["ignore", "pipe", "pipe"],
@@ -81,6 +81,10 @@ export class AkshareProvider {
 
   async fetchRelative(symbol: string, peers: string[] = [], signal?: AbortSignal): Promise<any> {
     return this.run("relative", { symbol, peers }, signal);
+  }
+
+  async fetchFinancials(symbol: string, indicator: "报告期" | "年度" = "报告期", signal?: AbortSignal): Promise<any> {
+    return this.run("financials", { symbol, indicator }, signal);
   }
 }
 

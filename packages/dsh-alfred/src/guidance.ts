@@ -11,9 +11,12 @@ const STARTUP = `Alfred investment-agent rules:
 - A ledger write requires a prepare preview and a later explicit user confirmation before commit.
 - Historical cost and technical price action cannot replace intrinsic-value and thesis analysis.`
 
+const REFERENCE_FILES = ['valuation-framework.md', 'position-strategy.md'] as const
+
 export function registerGuidance(ctx: Context): void {
-  const skillPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills', SKILL_NAME, 'SKILL.md')
-  const content = stripFrontmatter(fs.readFileSync(skillPath, 'utf8'))
+  const skillDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../skills', SKILL_NAME)
+  const skillPath = path.join(skillDir, 'SKILL.md')
+  const content = buildSkillContent(skillDir, skillPath, fs.readFileSync(skillPath, 'utf8'))
   const runtime = ctx as Context & { skills: { register(skill: unknown): unknown }; on(event: string, listener: (payload: any) => void): unknown }
   runtime.skills.register({
     name: SKILL_NAME,
@@ -21,7 +24,7 @@ export function registerGuidance(ctx: Context): void {
     source: 'bundled',
     content,
     path: skillPath,
-    resourceBase: { kind: 'directory', path: path.dirname(skillPath) },
+    resourceBase: { kind: 'directory', path: skillDir },
   })
   runtime.on('agent/session-start', ({ agent }) => {
     if (agent.session?.header?.agentPreset !== 'alfred') return
@@ -36,4 +39,22 @@ export function registerGuidance(ctx: Context): void {
 
 function stripFrontmatter(value: string): string {
   return value.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '').trim()
+}
+
+// The SKILL.md references files by relative markdown links, but the model loop
+// is not guaranteed to have a filesystem tool to open them. Inline the reference
+// bodies into the skill content so the valuation thresholds and position-strategy
+// rules are always available to the model without a file-read capability.
+function buildSkillContent(skillDir: string, skillPath: string, raw: string): string {
+  const body = stripFrontmatter(raw)
+  const sections: string[] = [body]
+  for (const name of REFERENCE_FILES) {
+    const refPath = path.join(skillDir, 'references', name)
+    try {
+      sections.push(`\n## ${name}\n\n${fs.readFileSync(refPath, 'utf8').trim()}`)
+    } catch {
+      sections.push(`\n## ${name}\n\n(reference file unavailable at ${refPath})`)
+    }
+  }
+  return sections.join('\n').trim()
 }

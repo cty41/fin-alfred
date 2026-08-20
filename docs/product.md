@@ -17,7 +17,7 @@ The primary user sits at a computer, uses DeepSeek Harness for long-form researc
 ## Supported release scope
 
 - Hong Kong listings for Xiaomi (`HKEX:1810`), Tencent (`HKEX:0700`), and Alibaba (`HKEX:9988`).
-- Market quote and relative-valuation evidence through the local AKShare adapter.
+- Market quote, relative-valuation evidence, and three-statement financial detail (balance/income/cashflow) with a standard-account summary through the local AKShare adapter.
 - Read-only portfolio and active-strategy context from the Alfred database.
 - Bear / Base / Bull strategy-state evaluation using price, downside, Base IRR, evidence completeness, and thesis red lines.
 - Confirmed registration of completed executions and first-time initial positions.

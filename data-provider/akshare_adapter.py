@@ -244,16 +244,138 @@ def relative(ak: Any, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_STATEMENT_REPORTS = {
+    "balance": "RPT_HKF10_FN_BALANCE_PC",
+    "income": "RPT_HKF10_FN_INCOME_PC",
+    "cashflow": "RPT_HKF10_FN_CASHFLOW_PC",
+}
+
+# The three statement reports accept different column sets: the balance sheet
+# has no START_DATE, while income and cashflow have START_DATE but no
+# STD_REPORT_DATE. Requesting a nonexistent column makes the endpoint return
+# result=null, so each report carries its own explicit column list.
+_STATEMENT_COLUMNS = {
+    "balance": (
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,"
+        "FISCAL_YEAR,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT,STD_REPORT_DATE"
+    ),
+    "income": (
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,"
+        "FISCAL_YEAR,START_DATE,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT"
+    ),
+    "cashflow": (
+        "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_CODE,REPORT_DATE,DATE_TYPE_CODE,"
+        "FISCAL_YEAR,START_DATE,STD_ITEM_CODE,STD_ITEM_NAME,AMOUNT"
+    ),
+}
+
+
+def _datacenter_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
+    """GET the Eastmoney datacenter JSON endpoint with the required headers."""
+    return _call_akshare(_datacenter_http, url, params)
+
+
+def _datacenter_http(url: str, params: dict[str, Any]) -> dict[str, Any]:
+    import requests
+
+    response = requests.get(
+        url,
+        params=params,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=15,
+    )
+    return response.json()
+
+
+def _statement_report_dates(ak: Any, symbol: str) -> tuple[list[str], str | None]:
+    """Return the report dates and reporting currency exposed for a symbol."""
+    url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
+    params = {
+        "reportName": "RPT_CUSTOM_HKSK_APPFN_CASHFLOW_SUMMARY",
+        "columns": "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,START_DATE,REPORT_DATE,"
+        "FISCAL_YEAR,CURRENCY,ACCOUNT_STANDARD,REPORT_TYPE",
+        "quoteColumns": "",
+        "filter": f'(SECUCODE="{symbol}.HK")',
+        "source": "F10",
+        "client": "PC",
+    }
+    data_json = _datacenter_json(url, params)
+    rows = data_json.get("result", {}).get("data") or []
+    if not rows:
+        raise ValueError(f"no financial report list for {symbol}")
+    report_list = rows[0].get("REPORT_LIST", [])
+    currency = rows[0].get("CURRENCY")
+    if currency is None and report_list:
+        currency = report_list[0].get("CURRENCY")
+    dates = [str(item["REPORT_DATE"]).split(" ")[0] for item in report_list]
+    return dates, currency
+
+
+def _statement(ak: Any, symbol: str, name: str, report: str, report_dates: list[str]) -> list[dict[str, Any]]:
+    url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
+    date_filter = "','".join(report_dates)
+    params = {
+        "reportName": report,
+        "columns": _STATEMENT_COLUMNS[name],
+        "quoteColumns": "",
+        "filter": f'(SECUCODE="{symbol}.HK")(REPORT_DATE in (\'{date_filter}\'))',
+        "pageNumber": "1",
+        "pageSize": "",
+        "sortTypes": "-1,1",
+        "sortColumns": "REPORT_DATE,STD_ITEM_CODE",
+        "source": "F10",
+        "client": "PC",
+    }
+    data_json = _datacenter_json(url, params)
+    result = data_json.get("result")
+    if result is None:
+        raise ValueError(f"{name} statement unavailable: {data_json.get('message')}")
+    return result.get("data") or []
+
+
+def financials(ak: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    symbol = _symbol(payload.get("symbol"))
+    indicator = payload.get("indicator", "报告期")
+    report_dates, currency = _statement_report_dates(ak, symbol)
+    report_dates = sorted(set(report_dates), reverse=True)
+    if indicator == "年度":
+        report_dates = [d for d in report_dates if d.endswith("-12-31")]
+    statements: dict[str, list[dict[str, Any]]] = {}
+    for name, report in _STATEMENT_REPORTS.items():
+        try:
+            statements[name] = _statement(ak, symbol, name, report, report_dates)
+        except Exception as error:  # a single unavailable statement must not discard the others
+            print(f"statement {name} for {symbol}: {error}", file=sys.stderr)
+            statements[name] = []
+    return {
+        "fetchedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "source": "AKShare / Eastmoney (datacenter)",
+        "symbol": symbol,
+        "indicator": indicator,
+        "currency": currency,
+        "reportDates": report_dates,
+        "statements": statements,
+    }
+
+
 def main() -> int:
-    if len(sys.argv) != 3 or sys.argv[1] not in {"prices", "relative"}:
-        print("usage: akshare_adapter.py <prices|relative> <json>", file=sys.stderr)
+    if len(sys.argv) != 3 or sys.argv[1] not in {"prices", "relative", "financials"}:
+        print(
+            "usage: akshare_adapter.py <prices|relative|financials> <json>",
+            file=sys.stderr,
+        )
         return 2
     try:
         payload = json.loads(sys.argv[2])
         if not isinstance(payload, dict):
             raise ValueError("payload must be an object")
         ak = _load_akshare()
-        output = prices(ak, payload) if sys.argv[1] == "prices" else relative(ak, payload)
+        handlers = {
+            "prices": prices,
+            "relative": relative,
+            "financials": financials,
+        }
+        output = handlers[sys.argv[1]](ak, payload)
         print(json.dumps(output, ensure_ascii=False, separators=(",", ":")))
         return 0
     except Exception as error:

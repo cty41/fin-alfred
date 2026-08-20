@@ -72,6 +72,16 @@ describe('dsh-alfred research service', () => {
     expect(result.data).not.toHaveProperty('pcfRaw')
   })
 
+  it('attaches nextSteps guidance to fundamentals so the model asks for financial evidence, not intrinsic value', async () => {
+    const service = new AlfredResearchService(config, provider())
+    const result = await service.fundamentals('HKEX:0700')
+    expect(result).toMatchObject({ ok: true, instrumentId: 'HKEX:0700' })
+    expect(result.nextSteps).toMatchObject({ purpose: expect.stringContaining('内在价值') })
+    expect(Array.isArray(result.nextSteps?.requiredFields)).toBe(true)
+    expect(result.nextSteps!.requiredFields.length).toBeGreaterThanOrEqual(6)
+    expect(result.nextSteps!.requiredFields.map(f => f.field)).toEqual(expect.arrayContaining(['最新报告期', '自由现金流或每股经营现金流', '股本 / 摊薄股数']))
+  })
+
   it('reports an incompatible Alfred database instead of treating it as empty', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-alfred-'))
     const dbPath = path.join(tempDir, 'alfred.db')
@@ -82,6 +92,43 @@ describe('dsh-alfred research service', () => {
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it('normalizes financial statements into raw + standard-account summary', async () => {
+    const market = provider()
+    market.fetchFinancials = async () => ({
+      fetchedAt: '2026-08-20T00:00:00Z',
+      source: 'AKShare / Eastmoney (datacenter)',
+      currency: 'HKD',
+      statements: {
+        balance: [
+          { STD_ITEM_NAME: '现金及等价物', AMOUNT: 100, REPORT_DATE: '2026-06-30 00:00:00' },
+          { STD_ITEM_NAME: '短期贷款', AMOUNT: 50, REPORT_DATE: '2026-06-30 00:00:00' },
+          { STD_ITEM_NAME: '总资产', AMOUNT: 1000, REPORT_DATE: '2026-06-30 00:00:00' },
+        ],
+        income: [{ STD_ITEM_NAME: '营运收入', AMOUNT: 4000, REPORT_DATE: '2026-06-30 00:00:00' }],
+        cashflow: [],
+      },
+    })
+    const service = new AlfredResearchService(config, market)
+    const result = await service.financialStatements('HKEX:0700', '报告期')
+    expect(result).toMatchObject({ ok: true, instrumentId: 'HKEX:0700' })
+    expect(result.data).toMatchObject({ symbol: '00700', indicator: '报告期' })
+    const statements = result.data!.statements
+    expect(statements.map((s: { kind: string }) => s.kind)).toEqual(['balance', 'income', 'cashflow'])
+    const summary = result.data!.summary
+    expect(summary.reportDate).toBe('2026-06-30')
+    expect(summary.currency).toBe('HKD')
+    expect(summary.balance.cashAndEquivalents.toString()).toBe('100')
+    expect(summary.balance.interestBearingDebt.toString()).toBe('50')
+    expect(summary.balance.totalAssets.toString()).toBe('1000')
+  })
+
+  it('reports a degraded state when the provider lacks financial statements', async () => {
+    const market = provider()
+    delete (market as Record<string, unknown>).fetchFinancials
+    const service = new AlfredResearchService(config, market)
+    await expect(service.financialStatements('HKEX:0700')).resolves.toMatchObject({ ok: false, instrumentId: 'HKEX:0700' })
   })
 
   it('registers research, strategy and confirmed-ledger tools', () => {
@@ -95,6 +142,7 @@ describe('dsh-alfred research service', () => {
       'alfred_stock_quote',
       'alfred_stock_fundamentals',
       'alfred_portfolio_context',
+      'alfred_financial_statements',
       'alfred_value_strategy',
       'alfred_prepare_execution',
       'alfred_commit_execution',
@@ -114,6 +162,17 @@ describe('value strategy invariants', () => {
     const base = { instrumentId: '阿里', currentPrice: 80, bearValue: 70, baseValue: 120, bullValue: 150, baseIrr: 0.2 }
     expect(evaluateValueStrategy({ ...base, dataComplete: false }).state).toBe('data-insufficient')
     expect(evaluateValueStrategy({ ...base, redLine: true }).state).toBe('exit-review')
+  })
+
+  it('returns a structured missing-field list for data-insufficient state', () => {
+    const result = evaluateValueStrategy({ instrumentId: '腾讯', currentPrice: 447.2, bearValue: 300, baseValue: 450, bullValue: 600, baseIrr: 0.12, dataComplete: false })
+    expect(result.state).toBe('data-insufficient')
+    expect(Array.isArray(result.missingInputs)).toBe(true)
+    expect(result.missingInputs).toEqual(expect.arrayContaining([
+      expect.stringContaining('Bear/Base/Bull'),
+      expect.stringContaining('Base IRR'),
+      expect.stringContaining('口径与来源日期'),
+    ]))
   })
 
   it('does not improve margin of safety when price rises', () => {

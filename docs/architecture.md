@@ -32,7 +32,7 @@ Public upstream data                            ledger_entries + positions
 
 `packages/dsh-alfred` is both a server plugin and a Web client bundle. `cordis.patch.yml` inserts the server plugin into a DSH profile. The package manifest declares the DSH bundle and Web-client injections.
 
-The server registers eight tools, the bundled investment Skill, and an `agent/session-start` listener. Startup guidance is injected only when the session header selects the `alfred` preset.
+The server registers nine tools, the bundled investment Skill, and an `agent/session-start` listener. Startup guidance is injected only when the session header selects the `alfred` preset.
 
 The Web client registers a help card in `conversation.input.dock` and a help button in `conversation.input.right`. Example prompts update the draft only. The build wrapper emits the factory format required by DSH's browser module loader.
 
@@ -41,6 +41,8 @@ The Web client registers a help card in `conversation.input.dock` and a help but
 The research service normalizes user aliases to one of three instrument IDs. Quote and relative-valuation calls cross the Node/Python boundary through `packages/provider-akshare`; abort signals and timeouts terminate abandoned subprocess work.
 
 Market results are bounded envelopes carrying an instrument, data, source, observation time, warning, or explicit error. Raw upstream series are not copied into model context when a compact summary is sufficient.
+
+Financial statements cross the same Node/Python boundary through a `financials` action. The Python adapter maps the Eastmoney F10 three-statement reports (balance `RPT_HKF10_FN_BALANCE_PC`, income `_INCOME_PC`, cashflow `_CASHFLOW_PC`) into a bounded envelope keyed by statement kind. The TypeScript service then bestows a stable standard-account summary (cash, investments, interest-bearing debt, minority interest, totals) via the versioned mapping layer in `packages/core/src/financials.ts`, while preserving raw rows for audit. Raw Eastmoney account names are non-uniform across instruments and are not assumed to be XBRL-standard.
 
 Portfolio context opens the configured SQLite database read-only. Missing databases, incompatible schemas, missing positions, and missing strategies remain distinguishable states.
 
@@ -70,8 +72,8 @@ At runtime, DSH composes the base bundle, installed bundle patches, profile `cor
 
 ## Verification layers
 
-- Unit tests cover aliases, bounded envelopes, strategy invariants, fixed-point arithmetic, token replay/session/expiry, oversell, insufficient cash, and initial-position refusal.
+- Unit tests cover aliases, bounded envelopes, strategy invariants, fixed-point arithmetic, token replay/session/expiry, oversell, insufficient cash, initial-position refusal, financial-statement mapping, and enterprise-value derivation.
 - Integration tests cover Skill/startup scoping, Web slot registration, three-company scenarios, and transaction rollback after state changes.
-- Python tests cover adapter retry/fallback behavior.
+- Python tests cover adapter retry/fallback behavior and the financial-statement envelope and per-report column sets.
 - Build verification checks type safety, package contents, and DSH browser registration.
 - Runtime acceptance checks composed config, plugin loading, Alfred preset visibility, Help UI behavior, and representative prompts. Visual and model-quality acceptance must not be inferred solely from unit tests.

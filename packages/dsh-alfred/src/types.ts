@@ -57,4 +57,9 @@ export interface ToolEnvelope {
   degraded?: boolean
   warning?: string
   error?: string
+  nextSteps?: {
+    purpose: string
+    requiredFields: Array<{ field: string; note: string }>
+    akShareNote?: string
+  }
 }

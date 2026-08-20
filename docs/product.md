@@ -16,12 +16,14 @@ The primary user sits at a computer, uses DeepSeek Harness for long-form researc
 
 ## Supported release scope
 
-- Hong Kong listings for Xiaomi (`HKEX:1810`), Tencent (`HKEX:0700`), and Alibaba (`HKEX:9988`).
+- Any Hong Kong listing, addressed by `HKEX:` + code (e.g. `HKEX:0700`, `HKEX:0001`) or, for a name, resolved against the cached securities master. Three anchor listings — Xiaomi (`HKEX:1810`), Tencent (`HKEX:0700`), and Alibaba (`HKEX:9988`) — keep first-class Chinese aliases and shortcuts.
 - Market quote, relative-valuation evidence, and three-statement financial detail (balance/income/cashflow) with a standard-account summary through the local AKShare adapter.
 - Read-only portfolio and active-strategy context from the Alfred database.
 - Bear / Base / Bull strategy-state evaluation using price, downside, Base IRR, evidence completeness, and thesis red lines.
 - Confirmed registration of completed executions and first-time initial positions.
 - Alfred preset, investment-research Skill, startup guidance, and contextual Web help.
+
+The standard-account summary (cash, investments, interest-bearing debt, minority interest, and asset/liability/equity totals) is produced by a versioned Chinese-keyword mapping layer. It is heuristic — for unusual statement layouts (banks, property, REITs) it may under- or over-count, so the raw rows are always preserved for audit and must be checked per company.
 
 ## Product rules
 
@@ -38,6 +40,7 @@ The primary user sits at a computer, uses DeepSeek Harness for long-form researc
 - Personalized financial advice, suitability assessment, tax advice, or regulatory compliance services.
 - Full financial-statement ingestion, production-grade DCF forecasting, live exchange feeds, or guaranteed market-data availability.
 - Broad security coverage, A-share workflows, multi-currency portfolio accounting, or portfolio optimization.
+- Per-company exact standard-account reconciliation: the statement summary is keyword-heuristic, not a XBRL-grade mapping.
 - Public npm/GitHub one-command installation. The current plugin is linked from a built monorepo checkout.
 
 ## Success criteria

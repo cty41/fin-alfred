@@ -32,29 +32,29 @@ export function apply(ctx: Context, config: AlfredPluginConfig): void {
   const ledger = new AlfredLedgerService(config.dbPath || defaults.dbPath, config.confirmationTtlMs || 600_000)
   ctx.tools.register(defineTool({
     name: 'alfred_stock_quote',
-    description: '查询小米、腾讯或阿里巴巴港股行情。支持 HKEX:1810、HKEX:0700、HKEX:9988。只读，不执行交易。',
-    parameters: { instrumentId: { type: 'string', required: true, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' } },
+    description: '查询任意港股行情。支持 HKEX:XXXX 或 5 位数字代码（如 HKEX:1810、HKEX:0700、HKEX:9988）。只读，不执行交易。',
+    parameters: { instrumentId: { type: 'string', required: true, description: '港股代码，如 HKEX:0700、0700、腾讯（仅三只快捷别名支持中文）。' } },
     output: textOutput(),
     execute: async (args, exec) => JSON.stringify(await service.quote(args.instrumentId, exec.signal)),
   }))
   ctx.tools.register(defineTool({
     name: 'alfred_stock_fundamentals',
-    description: '查询三只港股的当前估值、历史分位统计和同业估值比较。返回精简数据事实，不自动给出交易指令。',
-    parameters: { instrumentId: { type: 'string', required: true, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' } },
+    description: '查询任意港股的当前估值、历史分位统计。返回精简数据事实，不自动给出交易指令。',
+    parameters: { instrumentId: { type: 'string', required: true, description: '港股代码，如 HKEX:0700、0700、腾讯（仅三只快捷别名支持中文）。' } },
     output: textOutput(),
     execute: async (args, exec) => JSON.stringify(await service.fundamentals(args.instrumentId, exec.signal)),
   }))
   ctx.tools.register(defineTool({
     name: 'alfred_portfolio_context',
     description: '只读查询 Alfred 对目标股票的持仓和策略上下文；没有数据库或记录时明确返回不可用。',
-    parameters: { instrumentId: { type: 'string', required: true, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' } },
+    parameters: { instrumentId: { type: 'string', required: true, description: '港股代码，如 HKEX:0700、0700、腾讯（仅三只快捷别名支持中文）。' } },
     output: textOutput(),
     execute: async args => JSON.stringify(service.portfolioContext(args.instrumentId)),
   }))
   ctx.tools.register(defineTool({
     name: 'alfred_financial_statements',
-    description: '查询三只港股的三大财务报表明细（资产负债表、利润表、现金流量表），返回原始科目、标准科目汇总（现金/投资/有息负债/少数股东权益等）及报告期与币种。只读，不执行交易。',
-    parameters: { instrumentId: { type: 'string', required: true, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' }, indicator: { type: 'string', enum: ['报告期', '年度'], description: '报告期返回最新各期（含季度）；年度仅返回年报（12-31）。' } },
+    description: '查询任意港股的三大财务报表明细（资产负债表、利润表、现金流量表），返回原始科目、标准科目汇总（现金/投资/有息负债/少数股东权益等）及报告期与币种。只读，不执行交易。',
+    parameters: { instrumentId: { type: 'string', required: true, description: '港股代码，如 HKEX:0700、0700、腾讯（仅三只快捷别名支持中文）。' }, indicator: { type: 'string', enum: ['报告期', '年度'], description: '报告期返回最新各期（含季度）；年度仅返回年报（12-31）。' } },
     output: textOutput(),
     execute: async (args, exec) => JSON.stringify(await service.financialStatements(args.instrumentId, args.indicator ?? '报告期', exec.signal)),
   }))
@@ -95,7 +95,7 @@ export function apply(ctx: Context, config: AlfredPluginConfig): void {
   }))
 }
 
-function instrumentParameter() { return { type: 'string' as const, required: true as const, description: 'HKEX:1810、HKEX:0700 或 HKEX:9988。' } }
+function instrumentParameter() { return { type: 'string' as const, required: true as const, description: '港股代码，如 HKEX:0700、0700、腾讯（仅三只快捷别名支持中文）。' } }
 function executionParameters() {
   return {
     instrumentId: instrumentParameter(), side: { type: 'string' as const, required: true as const, enum: ['buy', 'sell'] }, tradedAt: { type: 'string' as const, required: true as const, description: 'ISO日期或时间。' }, quantity: { type: 'string' as const, required: true as const }, price: { type: 'string' as const, required: true as const },

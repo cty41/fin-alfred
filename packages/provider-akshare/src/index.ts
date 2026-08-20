@@ -40,7 +40,7 @@ export class AkshareProvider {
     this.timeoutMs = opts?.timeoutMs ?? 30_000;
   }
 
-  private run(action: "prices" | "relative" | "financials", payload: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+  private run(action: "prices" | "relative" | "financials" | "hk_spot", payload: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.pythonPath, [this.adapterPath, action, JSON.stringify(payload)], {
         stdio: ["ignore", "pipe", "pipe"],
@@ -85,6 +85,10 @@ export class AkshareProvider {
 
   async fetchFinancials(symbol: string, indicator: "报告期" | "年度" = "报告期", signal?: AbortSignal): Promise<any> {
     return this.run("financials", { symbol, indicator }, signal);
+  }
+
+  async fetchHkSpot(signal?: AbortSignal): Promise<any> {
+    return this.run("hk_spot", {}, signal);
   }
 }
 

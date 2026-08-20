@@ -38,13 +38,21 @@ The Web client registers a help card in `conversation.input.dock` and a help but
 
 ### Research service
 
-The research service normalizes user aliases to one of three instrument IDs. Quote and relative-valuation calls cross the Node/Python boundary through `packages/provider-akshare`; abort signals and timeouts terminate abandoned subprocess work.
+The research service resolves any Hong Kong listing into a canonical `HKEX:` instrument id. Codes and three anchor aliases (小米/腾讯/阿里) resolve synchronously; arbitrary Chinese/English names resolve asynchronously against the cached securities master (lazy-loaded with a 24-hour TTL, refreshed through the `hk_spot` action). Quote and relative-valuation calls cross the Node/Python boundary through `packages/provider-akshare`; abort signals and timeouts terminate abandoned subprocess work.
 
 Market results are bounded envelopes carrying an instrument, data, source, observation time, warning, or explicit error. Raw upstream series are not copied into model context when a compact summary is sufficient.
 
-Financial statements cross the same Node/Python boundary through a `financials` action. The Python adapter maps the Eastmoney F10 three-statement reports (balance `RPT_HKF10_FN_BALANCE_PC`, income `_INCOME_PC`, cashflow `_CASHFLOW_PC`) into a bounded envelope keyed by statement kind. The TypeScript service then bestows a stable standard-account summary (cash, investments, interest-bearing debt, minority interest, totals) via the versioned mapping layer in `packages/core/src/financials.ts`, while preserving raw rows for audit. Raw Eastmoney account names are non-uniform across instruments and are not assumed to be XBRL-standard.
+Financial statements cross the same Node/Python boundary through a `financials` action. The Python adapter maps the Eastmoney F10 three-statement reports (balance `RPT_HKF10_FN_BALANCE_PC`, income `_INCOME_PC`, cashflow `_CASHFLOW_PC`) into a bounded envelope keyed by statement kind. The TypeScript service then bestows a stable standard-account summary (cash, investments, interest-bearing debt, minority interest, totals) via the versioned keyword-mapping layer in `packages/core/src/financials.ts`, while preserving raw rows for audit. Raw Eastmoney account names are non-uniform across instruments and are not assumed to be XBRL-standard; the summary is marked heuristic.
 
-Portfolio context opens the configured SQLite database read-only. Missing databases, incompatible schemas, missing positions, and missing strategies remain distinguishable states.
+Portfolio context opens the ledger SQLite database read-only. Missing databases, incompatible schemas, missing positions, and missing strategies remain distinguishable states.
+
+### Securities and cache persistence
+
+`packages/dsh-alfred/src/meta-db.ts` owns a SEPARATE SQLite database (`alfred-meta.db`, not the ledger's `alfred.db`) for reproducible reference data: `hk_securities` (full HK code -> name/currency), `financial_cache`, and `price_cache`. It carries its own `schema_version` migration. The ledger (positions/executions) keeps its own transactional write boundary in `AlfredLedgerService` and never shares this file, avoiding collision with the deprecated standalone gateway's same-named database.
+
+### Rate limiting
+
+All outbound HTTP from the Python adapter goes through a unified retry path. Connection errors, timeouts, HTTP 429, and 5xx are retried with exponential backoff and jitter; other 4xx are not retried. The `financials`/datacenter path (previously unretried) now uses the same path. The full securities list (`hk_spot`, Sina-sourced, internally paginated) is fetched only when the cache is empty and reused for a 24-hour TTL; progress output is suppressed to keep stdout a single JSON document. Failures degrade to explicit `ok:false` envelopes, never fabricated or stale data.
 
 ### Strategy evaluator
 
@@ -72,8 +80,8 @@ At runtime, DSH composes the base bundle, installed bundle patches, profile `cor
 
 ## Verification layers
 
-- Unit tests cover aliases, bounded envelopes, strategy invariants, fixed-point arithmetic, token replay/session/expiry, oversell, insufficient cash, initial-position refusal, financial-statement mapping, and enterprise-value derivation.
-- Integration tests cover Skill/startup scoping, Web slot registration, three-company scenarios, and transaction rollback after state changes.
-- Python tests cover adapter retry/fallback behavior and the financial-statement envelope and per-report column sets.
+- Unit tests cover aliases, bounded envelopes, strategy invariants, fixed-point arithmetic, token replay/session/expiry, oversell, insufficient cash, initial-position refusal, financial-statement mapping, enterprise-value derivation, securities-name resolution (exact/fuzzy/ambiguous), and meta-db migration.
+- Integration tests cover Skill/startup scoping, Web slot registration, multi-company scenarios, and transaction rollback after state changes.
+- Python tests cover adapter retry/fallback behavior (connect, timeout, 429/5xx), non-retry of other 4xx, the financial-statement envelope, and per-report column sets.
 - Build verification checks type safety, package contents, and DSH browser registration.
 - Runtime acceptance checks composed config, plugin loading, Alfred preset visibility, Help UI behavior, and representative prompts. Visual and model-quality acceptance must not be inferred solely from unit tests.

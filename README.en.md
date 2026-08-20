@@ -8,14 +8,14 @@ A local-first, auditable DeepSeek Harness agent for value-investing research on 
 
 ## What it does
 
-- Queries and compares market and relative-valuation data for Xiaomi, Tencent, and Alibaba in Hong Kong.
+- Queries and compares market quotes, relative valuation, and three-statement financial detail for any Hong Kong listing (by `HKEX:` code, or by Chinese/English name).
 - Structures Bear / Base / Bull valuation cases, margin of safety, and expected IRR.
 - Reads local positions and strategies without inventing holdings or cost basis.
 - Produces build, wait, reduce, or exit-review conditions as research drafts—not trade instructions.
 - Atomically records completed real executions or initial positions after explicit confirmation.
 - Adds an Alfred preset, investment-research Skill, natural-language tool use, and contextual help to DSH Web.
 
-Supported instruments:
+Any Hong Kong code works (e.g. `HKEX:0001` CK Hutchison, `HKEX:2020` Anta, `HKEX:9633` Nongfu Spring). The following three are shortcut anchors with Chinese aliases:
 
 | Company | Instrument ID | Market symbol |
 | --- | --- | --- |
@@ -106,11 +106,11 @@ Alfred returns a preview and confirmation token, then stops. A matching commit t
 - **Research is not execution:** the plugin has no broker connection and cannot submit orders.
 - **Confirmed writes:** tokens are session-bound, expire after ten minutes by default, and are single-use. Ledger and position updates share one SQLite transaction.
 - **The model is not a source of truth:** it organizes research but cannot replace tool data or invent a portfolio.
-- **Limited coverage:** the current version covers three Hong Kong stocks and does not yet provide full financial-statement models, automatic updates, or portfolio-level optimization.
+- **Coverage and heuristic caveat:** any Hong Kong listing is addressable, but valuation and financial detail depend on upstream availability. The three-statement "standard-account summary" is assembled by generic Chinese-keyword rules and may under- or over-count for unusual layouts (banks, property, REITs); always verify against the raw statement rows.
 
 ## Data and failure boundaries
 
-The local Python adapter uses AKShare and upstream public interfaces for market and relative-valuation data. Network failures, rate limits, or upstream schema changes may make data unavailable. Alfred returns a structured error or degraded result instead of fabricating a quote. Verify investment decisions against exchange filings, company reports, and broker confirmations.
+The local Python adapter uses AKShare and upstream public interfaces for market, relative-valuation, and three-statement financial data. Network failures, rate limits, or upstream schema changes may make data unavailable. Alfred retries connection errors, timeouts, and HTTP 429/5xx with exponential backoff, and returns a structured error or degraded result instead of fabricating data. The full securities list is cached with a 24-hour TTL to avoid rate-limit-triggering refreshes. Verify investment decisions against exchange filings, company reports, and broker confirmations.
 
 ## Standalone deterministic tools
 

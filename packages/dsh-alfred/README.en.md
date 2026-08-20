@@ -79,8 +79,8 @@ Compare Tencent and Alibaba on margin of safety without assuming holdings.
 
 | Tool | Type | Purpose |
 | --- | --- | --- |
-| `alfred_stock_quote` | Read-only | Query quotes for the three supported stocks |
-| `alfred_stock_fundamentals` | Read-only | Current valuation, historical summary, and peer comparison |
+| `alfred_stock_quote` | Read-only | Query quotes for any HK listing (by code or Chinese/English name) |
+| `alfred_stock_fundamentals` | Read-only | Current valuation and historical percentile summary |
 | `alfred_financial_statements` | Read-only | Three-statement detail (balance/income/cashflow) plus standard-account summary (cash, investments, interest-bearing debt, minority interest, etc.) |
 | `alfred_portfolio_context` | Read-only | Read local position and strategy context |
 | `alfred_value_strategy` | Pure calculation | Evaluate the value-strategy state |
@@ -91,13 +91,15 @@ Compare Tencent and Alibaba on margin of safety without assuming holdings.
 
 Tokens are session-bound, expire after ten minutes by default, and are single-use. Commit rechecks cash, holdings, and duplicate execution keys. A failed transaction leaves no partial execution.
 
+Read-only tools accept any HK code (`HKEX:0001`, `2020.HK`, `9633`, …) or a name (resolved against the cached full securities list, refreshed every 24 hours; the first lookup may be slower). The three anchors (Xiaomi/Tencent/Alibaba) keep Chinese shortcut aliases.
+
 ### Financial-statement boundaries
 
 `alfred_financial_statements` fetches the three statements from a public Eastmoney interface (`datacenter.eastmoney.com`, free and unauthenticated) — a **secondary aggregation**, not the companies' IR originals. Notes:
 
-- **Currency:** Tencent, Xiaomi, and Alibaba all report in **CNY (人民币)**; the returned `currency` is 「人民币」.
+- **Currency:** the three statements are reported in **CNY (人民币)**; the returned `currency` is 「人民币」.
 - **Reporting period:** `报告期` returns each period (including quarterly); `年度` returns fiscal-year 12-31 only. Alibaba's fiscal year ends in March, so cross-company comparison must align periods.
-- **Non-uniform account names:** each company's raw account names follow their own filings. The standard-account summary (cash, investments, interest-bearing debt, minority interest, total assets/liabilities/equity) is produced by the mapping layer in `packages/core/src/financials.ts`; raw rows are preserved for audit.
+- **Non-uniform account names:** each company's raw account names follow their own filings. The standard-account summary (cash, investments, interest-bearing debt, minority interest, total assets/liabilities/equity) is produced by the generic keyword mapping layer in `packages/core/src/financials.ts`, marked `mapping.heuristic=true`; raw rows are preserved for audit.
 - **No segment data:** the statements omit segment revenue (Tencent's VAS / ads / fintech & business services), which requires official results-PDF parsing — out of scope for this release.
 
 ## Usage examples

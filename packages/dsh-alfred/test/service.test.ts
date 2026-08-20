@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { AlfredResearchService, normalizeInstrument, supportedPeerSymbols, type MarketProvider } from '../src/service.js'
+import { AlfredResearchService, normalizeInstrument, symbolOf, type MarketProvider } from '../src/service.js'
 import { apply } from '../src/index.js'
 import { AlfredLedgerService } from '../src/ledger.js'
 import { evaluateValueStrategy } from '../src/strategy.js'
@@ -33,8 +33,18 @@ describe('dsh-alfred research service', () => {
     expect(normalizeInstrument(value)).toBe(expected)
   })
 
-  it('rejects unsupported instruments', () => {
-    expect(() => normalizeInstrument('600519.SH')).toThrow(/只支持/)
+  it('rejects non-HK identifiers', () => {
+    expect(() => normalizeInstrument('600519.SH')).toThrow(/无法识别/)
+  })
+
+  it('normalizes any HK code, not just the anchors', () => {
+    expect(normalizeInstrument('1')).toBe('HKEX:0001')
+    expect(normalizeInstrument('9633')).toBe('HKEX:9633')
+    expect(normalizeInstrument('3896')).toBe('HKEX:3896')
+    expect(normalizeInstrument('2020')).toBe('HKEX:2020')
+    expect(symbolOf('HKEX:9633')).toBe('09633')
+    expect(symbolOf('HKEX:1810')).toBe('01810')
+    expect(symbolOf('HKEX:0700')).toBe('00700')
   })
 
   it('returns a bounded quote envelope for each supported stock', async () => {
@@ -44,7 +54,7 @@ describe('dsh-alfred research service', () => {
     }
   })
 
-  it('passes peer symbols and cancellation to the fundamentals provider', async () => {
+  it('passes no automatic peers and honors cancellation in fundamentals', async () => {
     let receivedPeers: string[] | undefined
     let receivedSignal: AbortSignal | undefined
     const market = provider()
@@ -56,9 +66,8 @@ describe('dsh-alfred research service', () => {
     const service = new AlfredResearchService(config, market)
     const controller = new AbortController()
     await expect(service.fundamentals('HKEX:1810')).resolves.toMatchObject({ ok: true, data: { symbol: '01810' } })
-    expect(supportedPeerSymbols('HKEX:1810')).toEqual(['00700', '09988'])
     await service.fundamentals('HKEX:1810', controller.signal)
-    expect(receivedPeers).toEqual(['00700', '09988'])
+    expect(receivedPeers).toEqual([])
     expect(receivedSignal).toBe(controller.signal)
   })
 
@@ -129,6 +138,28 @@ describe('dsh-alfred research service', () => {
     delete (market as Record<string, unknown>).fetchFinancials
     const service = new AlfredResearchService(config, market)
     await expect(service.financialStatements('HKEX:0700')).resolves.toMatchObject({ ok: false, instrumentId: 'HKEX:0700' })
+  })
+
+  it('resolves an arbitrary security name through the securities master', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-alfred-meta-'))
+    const market = provider()
+    market.fetchHkSpot = async () => ({
+      securities: [
+        { code: '00001', nameZh: '长和', nameEn: 'CKH HOLDINGS' },
+        { code: '09633', nameZh: '农夫山泉', nameEn: 'NONGFU SPRING' },
+      ],
+    })
+    market.fetchPrices = async () => [{ symbol: '00001', price: 69.7, previousClose: 69.5, observedAt: '2026-08-20', source: 'test' }]
+    try {
+      const service = new AlfredResearchService({ ...config, metaDbPath: path.join(tempDir, 'meta.db') }, market)
+      await expect(service.resolveInstrument('长和')).resolves.toBe('HKEX:0001')
+      await expect(service.resolveInstrument('农夫山泉')).resolves.toBe('HKEX:9633')
+      await expect(service.resolveInstrument('不存在公司xyz')).rejects.toThrow(/未在港股列表/)
+      const quote = await service.quote('长和')
+      expect(quote).toMatchObject({ ok: true, instrumentId: 'HKEX:0001' })
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 
   it('registers research, strategy and confirmed-ledger tools', () => {

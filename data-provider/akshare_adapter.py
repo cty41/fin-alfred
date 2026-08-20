@@ -17,6 +17,8 @@ import time
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+import requests
+
 
 def _load_akshare():
     with contextlib.redirect_stdout(io.StringIO()):
@@ -46,6 +48,40 @@ def _iso_date(value: Any) -> str:
     return str(value)[:10]
 
 
+def _build_headers(url: str, extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Headers currently required by upstream quote providers."""
+    headers = dict(extra or {})
+    headers.setdefault("User-Agent", "Mozilla/5.0")
+    headers.setdefault("Accept", "application/json, text/plain, */*")
+    headers.setdefault("Connection", "close")
+    if "eastmoney.com" in url:
+        headers.setdefault("Referer", "https://quote.eastmoney.com/")
+    elif "baidu.com" in url:
+        headers.setdefault("Referer", "https://gushitong.baidu.com/")
+    return headers
+
+
+def _default_retry_backoff(attempt: int) -> float:
+    """Exponential backoff with small jitter to avoid thundering herd."""
+    base = 0.5 * (2**attempt)
+    return base * (0.9 + 0.2 * ((time.time() * 7919 + attempt * 104729) % 1))
+
+
+def _is_retryable(response_or_error: Any, requests_module: Any) -> bool:
+    """Return True for transient failures worth retrying (throttling / network)."""
+    if isinstance(response_or_error, Exception):
+        exc_types = (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ReadTimeout,
+            requests.exceptions.ChunkedEncodingError,
+        )
+        return isinstance(response_or_error, exc_types)
+    # retry on HTTP 429 (rate limit) and 5xx; not on other 4xx
+    status = getattr(response_or_error, "status_code", None)
+    return status == 429 or (isinstance(status, int) and status >= 500)
+
+
 def _request_with_retry(requests_module: Any, original_get: Any, url: str, *args: Any, **kwargs: Any):
     """Add the headers currently required by upstream quote providers.
 
@@ -54,18 +90,7 @@ def _request_with_retry(requests_module: Any, original_get: Any, url: str, *args
     restored by ``_call_akshare`` before the subprocess handles another call.
     """
 
-    headers = dict(kwargs.pop("headers", {}) or {})
-    headers.setdefault(
-        "User-Agent",
-        "Mozilla/5.0",
-    )
-    headers.setdefault("Accept", "application/json, text/plain, */*")
-    headers.setdefault("Connection", "close")
-    if "eastmoney.com" in url:
-        headers.setdefault("Referer", "https://quote.eastmoney.com/")
-    elif "baidu.com" in url:
-        headers.setdefault("Referer", "https://gushitong.baidu.com/")
-    kwargs["headers"] = headers
+    kwargs["headers"] = _build_headers(url, kwargs.pop("headers", None))
     kwargs.setdefault("timeout", 15)
 
     for attempt in range(3):
@@ -76,11 +101,15 @@ def _request_with_retry(requests_module: Any, original_get: Any, url: str, *args
                 (parsed.scheme, "push2his.eastmoney.com", parsed.path, parsed.query, parsed.fragment)
             )
         try:
-            return original_get(request_url, *args, **kwargs)
-        except (requests_module.exceptions.ConnectionError, requests_module.exceptions.Timeout):
+            response = original_get(request_url, *args, **kwargs)
+            if not _is_retryable(response, requests_module):
+                return response
             if attempt == 2:
+                return response  # exhausted retries; return the last response
+        except Exception as error:  # noqa: BLE001 - classify and retry transient errors
+            if not _is_retryable(error, requests_module) or attempt == 2:
                 raise
-            time.sleep(0.35 * (2**attempt))
+        time.sleep(_default_retry_backoff(attempt))
     raise AssertionError("unreachable")
 
 
@@ -271,19 +300,22 @@ _STATEMENT_COLUMNS = {
 
 
 def _datacenter_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
-    """GET the Eastmoney datacenter JSON endpoint with the required headers."""
+    """GET the Eastmoney datacenter JSON endpoint with unified retry.
+
+    Deliberately routes through ``_call_akshare`` so that the same throttling
+    retry used for AKShare-internal calls also applies to the datacenter
+    endpoint (which was previously unretried).
+    """
     return _call_akshare(_datacenter_http, url, params)
 
 
 def _datacenter_http(url: str, params: dict[str, Any]) -> dict[str, Any]:
-    import requests
-
-    response = requests.get(
-        url,
-        params=params,
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=15,
-    )
+    response = requests.get(url, params=params, headers=_build_headers(url), timeout=15)
+    if response.status_code == 429 or response.status_code >= 500:
+        # let _request_with_retry's response classification retry it; but the
+        # response object is returned to _call_akshare which treats it as a
+        # successful call. Handle here defensively by raising on non-OK.
+        response.raise_for_status()
     return response.json()
 
 
@@ -358,10 +390,56 @@ def financials(ak: Any, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def hk_spot(ak: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the full HK securities list (code -> name/currency).
+
+    Uses AKShare's Sina-sourced ``stock_hk_spot``. The upstream call paginates
+    internally (dozens of requests) and prints a tqdm progress bar; wrap it in
+    a redirected stdout so the progress output never pollutes the atomic JSON
+    result the gateway expects on stdout.
+    """
+    from tqdm import tqdm  # type: ignore
+
+    # Disable tqdm's default output to stderr/iterable decoration.
+    import tqdm.std  # type: ignore
+
+    original_init = tqdm.std.tqdm.__init__
+
+    def silent_init(self, *args: Any, **kwargs: Any):
+        kwargs["disable"] = True
+        original_init(self, *args, **kwargs)
+
+    tqdm.std.tqdm.__init__ = silent_init  # type: ignore[method-assign]
+    try:
+        frame = _call_akshare(ak.stock_hk_spot)
+    finally:
+        tqdm.std.tqdm.__init__ = original_init  # type: ignore[method-assign]
+
+    securities: list[dict[str, Any]] = []
+    for _, row in frame.iterrows():
+        code = _symbol(row.get("代码"))
+        name_zh = str(row.get("中文名称") or "").strip()
+        name_en = str(row.get("英文名称") or "").strip()
+        securities.append(
+            {
+                "code": code,
+                "nameZh": name_zh,
+                "nameEn": name_en,
+                "currency": "HKD",
+            }
+        )
+    return {
+        "fetchedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "source": "AKShare / Sina",
+        "count": len(securities),
+        "securities": securities,
+    }
+
+
 def main() -> int:
-    if len(sys.argv) != 3 or sys.argv[1] not in {"prices", "relative", "financials"}:
+    if len(sys.argv) != 3 or sys.argv[1] not in {"prices", "relative", "financials", "hk_spot"}:
         print(
-            "usage: akshare_adapter.py <prices|relative|financials> <json>",
+            "usage: akshare_adapter.py <prices|relative|financials|hk_spot> <json>",
             file=sys.stderr,
         )
         return 2
@@ -374,6 +452,7 @@ def main() -> int:
             "prices": prices,
             "relative": relative,
             "financials": financials,
+            "hk_spot": hk_spot,
         }
         output = handlers[sys.argv[1]](ak, payload)
         print(json.dumps(output, ensure_ascii=False, separators=(",", ":")))

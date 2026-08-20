@@ -1,7 +1,15 @@
 {
   "name": "dsh-alfred",
+  "description": "Local-first, auditable DSH value-investing agent for Hong Kong stocks.",
   "version": "0.2.0",
   "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cty41/fin-alfred.git",
+    "directory": "packages/dsh-alfred"
+  },
+  "keywords": ["deepseek-harness", "value-investing", "investment-research", "local-first", "akshare"],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,7 +24,8 @@
     "presets",
     "scripts",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "README.en.md"
   ],
   "dsh": {
     "bundle": {

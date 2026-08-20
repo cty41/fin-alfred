@@ -1,8 +1,22 @@
 ﻿{
     "name":  "fin-alfred",
+    "description":  "DSH Alfred: a local-first, auditable value-investing agent for Hong Kong stocks.",
     "version":  "0.2.0",
     "private":  true,
     "type":  "module",
+    "license":  "Apache-2.0",
+    "repository":  {
+                        "type":  "git",
+                        "url":  "git+https://github.com/cty41/fin-alfred.git"
+                    },
+    "keywords":  [
+                      "deepseek-harness",
+                      "value-investing",
+                      "investment-research",
+                      "local-first",
+                      "ai-agent",
+                      "akshare"
+                  ],
     "engines":  {
                     "node":  "\u003e=24.0.0"
                 },

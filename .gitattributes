@@ -27,3 +27,5 @@ data-provider/uv.lock text -diff
 *.db binary
 *.sqlite binary
 *.sqlite3 binary
+*.wasm binary
+*.pyc binary

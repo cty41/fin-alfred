@@ -1,4 +1,4 @@
-﻿# Dependencies and build output
+# Dependencies and build output
 node_modules/
 data-provider/.venv/
 dist/
@@ -52,3 +52,13 @@ nul
 
 # Local temporary research artifacts
 /tmp/
+
+# Local tooling and probe artifacts (never source)
+.tmp-dsh/
+_child_write_test.txt
+data-provider/.jsonpath-src/
+data-provider/_probe_venvdir.txt
+minimal.dsh.patch.yml
+ollama.dsh.patch.yml
+tmp-default.yml
+tmp-default2.yml

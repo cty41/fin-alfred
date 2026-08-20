@@ -157,6 +157,32 @@ describe('dsh-alfred research service', () => {
       await expect(service.resolveInstrument('不存在公司xyz')).rejects.toThrow(/未在港股列表/)
       const quote = await service.quote('长和')
       expect(quote).toMatchObject({ ok: true, instrumentId: 'HKEX:0001' })
+      // 非锚点股展示名透传：中文名来自 securities master，而非回落为代码
+      expect(quote.data).toMatchObject({ name: '长和' })
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('warm-up is non-blocking and makes the persisted cache reusable across instances', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-alfred-meta-'))
+    let hkSpotCalls = 0
+    const market = provider()
+    market.fetchHkSpot = async () => {
+      hkSpotCalls += 1
+      return { securities: [{ code: '09633', nameZh: '农夫山泉', nameEn: 'NONGFU SPRING' }] }
+    }
+    try {
+      const metaDbPath = path.join(tempDir, 'meta.db')
+      const first = new AlfredResearchService({ ...config, metaDbPath }, market)
+      await first.warmUpSecurities()
+      expect(hkSpotCalls).toBe(1)
+      await expect(first.resolveInstrument('农夫山泉')).resolves.toBe('HKEX:9633')
+
+      // 第二个实例（模拟重启）复用持久化缓存，不再触发 hk_spot
+      const second = new AlfredResearchService({ ...config, metaDbPath }, market)
+      await expect(second.resolveInstrument('农夫山泉')).resolves.toBe('HKEX:9633')
+      expect(hkSpotCalls).toBe(1)
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true })
     }

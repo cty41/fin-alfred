@@ -81,11 +81,32 @@ export class AlfredResearchService {
     throw new Error(`未在港股列表中找到「${value}」。请使用代码或更完整的名称。`)
   }
 
+  /**
+   * Warm the securities master in the background (e.g. at plugin startup) so
+   * the first name lookup does not pay the full hk_spot fetch latency. Failures
+   * are swallowed: name resolution degrades to code/alias resolution.
+   */
+  async warmUpSecurities(): Promise<void> {
+    try {
+      await this.loadSecurities()
+    } catch {
+      // intentional no-op
+    }
+  }
+
   private async loadSecurities() {
-    const fresh = this.securitiesLoadedAt > 0 && (Date.now() - this.securitiesLoadedAt) < SECURITIES_TTL_MS
-    if (!fresh) {
-      const needFetch = this.securitiesLoadedAt === 0 && this.meta.listSecurities().length === 0
-      if (needFetch && typeof this.provider.fetchHkSpot === 'function') {
+    const inMemoryFresh = this.securitiesLoadedAt > 0 && (Date.now() - this.securitiesLoadedAt) < SECURITIES_TTL_MS
+    if (inMemoryFresh) return this.meta.listSecurities()
+
+    const persistedAt = this.meta.securitiesUpdatedAt()
+    const persistedFresh = persistedAt !== undefined && (Date.now() - Date.parse(persistedAt)) < SECURITIES_TTL_MS
+    if (this.securitiesLoadedAt === 0 && persistedFresh) {
+      this.securitiesLoadedAt = Date.now()
+      return this.meta.listSecurities()
+    }
+
+    if (typeof this.provider.fetchHkSpot === 'function') {
+      try {
         const raw = await this.provider.fetchHkSpot()
         const items = Array.isArray(raw?.securities) ? raw.securities : []
         if (items.length > 0) {
@@ -93,10 +114,22 @@ export class AlfredResearchService {
             code: String(s.code), nameZh: String(s.nameZh ?? ''), nameEn: String(s.nameEn ?? ''), currency: 'HKD', updatedAt: new Date().toISOString(),
           })))
         }
+      } catch {
+        // fall back to the persisted cache below if we have one
       }
-      this.securitiesLoadedAt = Date.now()
     }
-    return this.meta.listSecurities()
+    this.securitiesLoadedAt = Date.now()
+    const cached = this.meta.listSecurities()
+    if (cached.length > 0) return cached
+    throw new Error('无法获取港股列表（上游限流或网络不可用），请稍后重试或直接使用代码。')
+  }
+
+  /** Display name: anchor name, else security-master Chinese name, else code. */
+  private displayNameFor(instrumentId: string): string {
+    const anchor = ANCHOR_INSTRUMENTS[instrumentId as keyof typeof ANCHOR_INSTRUMENTS]
+    if (anchor) return anchor.name
+    const security = this.meta.getSecurity(symbolOf(instrumentId))
+    return security?.nameZh || instrumentId
   }
 
   async quote(value: string, signal?: AbortSignal): Promise<ToolEnvelope> {
@@ -112,7 +145,7 @@ export class AlfredResearchService {
       const row = rows.at(-1)
       if (!row) return { ok: false, instrumentId, error: '数据源未返回行情。' }
       const data = {
-        name: displayName(instrumentId),
+        name: this.displayNameFor(instrumentId),
         symbol,
         price: row.price,
         previousClose: row.previousClose,
@@ -145,7 +178,7 @@ export class AlfredResearchService {
       return {
         ok: true,
         instrumentId,
-        data: { name: displayName(instrumentId), ...summary },
+        data: { name: this.displayNameFor(instrumentId), ...summary },
         source: typeof relative.source === 'string' ? relative.source : 'AKShare / Baidu / Eastmoney',
         observedAt: typeof relative.fetchedAt === 'string' ? relative.fetchedAt : undefined,
         nextSteps: {
@@ -213,7 +246,7 @@ export class AlfredResearchService {
         ok: true,
         instrumentId,
         data: {
-          name: displayName(instrumentId),
+          name: this.displayNameFor(instrumentId),
           symbol,
           indicator,
           statements,

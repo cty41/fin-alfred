@@ -30,6 +30,9 @@ export function apply(ctx: Context, config: AlfredPluginConfig): void {
     timeoutMs: config.timeoutMs || defaults.timeoutMs,
   })
   const ledger = new AlfredLedgerService(config.dbPath || defaults.dbPath, config.confirmationTtlMs || 600_000)
+  // Warm the securities master in the background so the first name lookup
+  // does not pay the full hk_spot latency. Non-blocking and failure-safe.
+  setTimeout(() => { void service.warmUpSecurities().catch(() => undefined) }, 0)
   ctx.tools.register(defineTool({
     name: 'alfred_stock_quote',
     description: '查询任意港股行情。支持 HKEX:XXXX 或 5 位数字代码（如 HKEX:1810、HKEX:0700、HKEX:9988）。只读，不执行交易。',

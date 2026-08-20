@@ -48,10 +48,14 @@ export class AkshareProvider {
       });
       let stdout = "";
       let stderr = "";
+      // The full securities list (hk_spot) paginates dozens of upstream calls
+      // and can take well over the default quote/financial timeout, so give it
+      // a dedicated longer budget.
+      const budget = action === "hk_spot" ? Math.max(this.timeoutMs, 120_000) : this.timeoutMs;
       const timer = setTimeout(() => {
         child.kill("SIGTERM");
-        reject(new Error(`AKShare adapter timed out after ${this.timeoutMs}ms`));
-      }, this.timeoutMs);
+        reject(new Error(`AKShare adapter timed out after ${budget}ms`));
+      }, budget);
       child.stdout.on("data", (d) => (stdout += d));
       child.stderr.on("data", (d) => (stderr += d));
       child.on("close", (code) => {
